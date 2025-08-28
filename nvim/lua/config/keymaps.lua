@@ -144,69 +144,177 @@ end, { desc = 'Run SageTag on current file' })
 -- 🗃️ DATABASE OPERATIONS
 -- ============================================================================
 
--- Database connection helpers
-local function execute_sql_with_dadbod(range)
-  local cmd = range == "file" and "silent! %DB" or
-      range == "visual" and "silent! '<,'>DB" or
-      range == "line" and "silent! .DB" or ""
-  if cmd ~= "" then
-    vim.cmd(cmd)
-    vim.cmd("redraw!")
-  end
-end
 
-local function execute_fabric_sql(range)
-  local fabric_server = os.getenv("FABRIC_SERVER") or "your-fabric-server.datawarehouse.fabric.microsoft.com"
-  local database = vim.fn.input("Database name (or press Enter for default): ")
-  if database == "" then
-    database = "master"
-  end
+vim.keymap.set('n', '<leader>sq', function()
+  -- Get all lines from buffer and build query
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  local query = table.concat(lines, ' '):gsub('"', '\\"'):gsub('%s+', ' ')
 
-  local content, temp_file
-  if range == "file" then
-    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-    temp_file = vim.fn.tempname() .. ".sql"
-    vim.fn.writefile(lines, temp_file)
-  elseif range == "line" then
-    local line = vim.api.nvim_get_current_line()
-    temp_file = vim.fn.tempname() .. ".sql"
-    vim.fn.writefile({ line }, temp_file)
+  -- Build sqlcmd command
+  local server = os.getenv("SQLSERVER") or "localhost"
+  local db = os.getenv("SQLDB") or "DW"
+  local auth = os.getenv("SQLAUTH")
+
+  local cmd = { "sqlcmd", "-S", server, "-d", db }
+  if auth and auth ~= "" then table.insert(cmd, auth) end
+  vim.list_extend(cmd, { "-Q", query, "-s", ",", "-W" })
+
+  -- Test if sqlcmd exists first
+  if vim.fn.executable("sqlcmd") == 0 then
+    print("Error: sqlcmd not found in PATH")
+    return
   end
 
-  if temp_file then
-    local cmd = string.format("sqlcmd -G -S %s -d %s -i %s", fabric_server, database, temp_file)
-    local output = vim.fn.system(cmd)
-    vim.fn.delete(temp_file)
+  -- Progress tracking
+  local start_time = vim.loop.now()
+  local progress_timer
+  local job_id
 
-    -- Display output in split window
-    vim.cmd('botright split')
-    local buf = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_option(buf, 'buftype', 'nofile')
-    vim.api.nvim_buf_set_option(buf, 'bufhidden', 'wipe')
-    vim.api.nvim_buf_set_option(buf, 'filetype', 'dbout')
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(output, '\n'))
-    vim.api.nvim_win_set_buf(0, buf)
-    vim.cmd('resize 15')
+  -- Show initial message
+  vim.api.nvim_echo({ { "Running SQL query...", "Normal" } }, false, {})
+
+  local function update_progress()
+    local elapsed = (vim.loop.now() - start_time) / 1000
+    local mins = math.floor(elapsed / 60)
+    local secs = math.floor(elapsed % 60)
+    local time_str = mins > 0 and string.format("%dm %02ds", mins, secs) or string.format("%ds", secs)
+
+    vim.schedule(function()
+      vim.api.nvim_echo({
+        { "SQL query running... ",     "Normal" },
+        { time_str,                    "Number" },
+        { " (Press Ctrl+C to cancel)", "Comment" }
+      }, false, {})
+    end)
   end
-end
 
--- SQL Database keymaps (SQL files only)
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = { "sql", "mysql", "plsql" },
+  -- Start progress timer (update every second)
+  progress_timer = vim.loop.new_timer()
+  progress_timer:start(1000, 1000, update_progress)
+
+  local result_lines = {}
+  job_id = vim.fn.jobstart(cmd, {
+    stdout_buffered = true,
+    stderr_buffered = true,
+    on_stdout = function(_, data)
+      if data then
+        vim.list_extend(result_lines, data)
+      end
+    end,
+    on_stderr = function(_, data)
+      if data then
+        vim.list_extend(result_lines, data)
+      end
+    end,
+    on_exit = function(_, code)
+      -- Stop progress tracking
+      if progress_timer then
+        progress_timer:stop()
+        progress_timer:close()
+      end
+
+      local elapsed = (vim.loop.now() - start_time) / 1000
+      local mins = math.floor(elapsed / 60)
+      local secs = math.floor(elapsed % 60)
+      local time_str = mins > 0 and string.format("%dm %02ds", mins, secs) or string.format("%.1fs", secs)
+
+      vim.schedule(function()
+        if code ~= 0 then
+          vim.api.nvim_echo({ { "Query cancelled or failed after ", "Normal" }, { time_str, "Number" } }, false, {})
+        else
+          vim.api.nvim_echo({ { "Query completed in ", "Normal" }, { time_str, "Number" } }, false, {})
+        end
+
+        -- Filter out empty lines and unwanted rows
+        local clean_lines = {}
+        for _, line in ipairs(result_lines) do
+          if line ~= "" and not line:match("^%-+") and not line:match("^%(%d+ rows affected%)$") then
+            table.insert(clean_lines, line)
+          end
+        end
+
+        -- Check for errors
+        if code ~= 0 or #clean_lines == 0 or clean_lines[1]:match("Msg") or clean_lines[1]:match("Error") then
+          -- Show error in floating window
+          local buf = vim.api.nvim_create_buf(false, true)
+          vim.api.nvim_buf_set_lines(buf, 0, -1, false, clean_lines)
+          vim.bo[buf].filetype = "sql"
+
+          local width = math.floor(vim.o.columns * 0.7)
+          local height = math.floor(vim.o.lines * 0.3)
+          local row = math.floor((vim.o.lines - height) / 2)
+          local col = math.floor((vim.o.columns - width) / 2)
+
+          local win = vim.api.nvim_open_win(buf, true, {
+            relative = "editor",
+            width = width,
+            height = height,
+            row = row,
+            col = col,
+            border = "rounded",
+            style = "minimal",
+          })
+
+          vim.keymap.set("n", "q", function()
+            vim.api.nvim_win_close(win, true)
+          end, { buffer = buf })
+        else
+          -- Success: write CSV and open VisiData
+          local tmp = vim.fn.tempname() .. ".csv"
+          local f = io.open(tmp, "w")
+          for _, line in ipairs(clean_lines) do
+            f:write(line .. "\n")
+          end
+          f:close()
+
+          -- Open VisiData in terminal
+          local term_buf = vim.api.nvim_create_buf(false, true)
+          vim.api.nvim_win_set_buf(0, term_buf)
+          vim.api.nvim_buf_set_option(term_buf, 'swapfile', false)
+
+          vim.fn.termopen({ "vd", "-f", "csv", tmp }, {
+            on_exit = function()
+              os.remove(tmp)
+              vim.schedule(function()
+                if vim.api.nvim_buf_is_valid(term_buf) then
+                  vim.api.nvim_buf_delete(term_buf, { force = true })
+                end
+              end)
+            end
+          })
+          vim.cmd("startinsert")
+        end
+      end)
+    end
+  })
+
+  -- Allow cancelling with Ctrl+C
+  vim.keymap.set('n', '<C-c>', function()
+    if job_id then
+      vim.fn.jobstop(job_id)
+      if progress_timer then
+        progress_timer:stop()
+        progress_timer:close()
+      end
+      vim.api.nvim_echo({ { "SQL query cancelled", "WarningMsg" } }, false, {})
+    end
+  end, { buffer = 0, desc = "Cancel SQL query" })
+end, { desc = "Run entire buffer as SQL query with sqlcmd → VisiData" })
+
+-- QoL: auto-enter terminal mode when opening any :terminal buffer
+vim.api.nvim_create_autocmd("TermOpen", {
+  pattern = "*",
   callback = function()
-    local opts = { buffer = true }
-
-    -- Note: Basic vim-dadbod operations (<leader>de, <leader>dv, <leader>dl) are defined in dadbod.lua
-
-    -- Fabric Data Warehouse operations (custom Azure integration)
-    vim.keymap.set("n", "<leader>dae", function() execute_fabric_sql("file") end,
-      vim.tbl_extend("force", opts, { desc = "Execute SQL file on Fabric DW" }))
-    vim.keymap.set("n", "<leader>dal", function() execute_fabric_sql("line") end,
-      vim.tbl_extend("force", opts, { desc = "Execute current line on Fabric DW" }))
-
-    -- Note: SQL formatting keymaps (<leader>fmt, <leader>fma) are defined in sql-formatter.lua
-  end,
+    vim.cmd("startinsert")
+  end
 })
+
+-- QoL: <C-q> to leave terminal and return to prev window
+vim.keymap.set('t', '<C-q>', [[<C-\><C-n><C-w>p]], { noremap = true, silent = true })
+
+
+
+
 
 -- ============================================================================
 -- 🤖 AI INTEGRATION (GP.NVIM)
