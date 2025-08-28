@@ -145,9 +145,22 @@ end, { desc = 'Run SageTag on current file' })
 -- ============================================================================
 
 
-vim.keymap.set('n', '<leader>sq', function()
-  -- Get all lines from buffer and build query
-  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+local function run_sql_query()
+  local lines
+  local mode = vim.api.nvim_get_mode().mode
+  
+  if mode == 'v' or mode == 'V' or mode == '\22' then -- visual modes
+    -- Get visually selected lines
+    local start_pos = vim.fn.getpos("'<")
+    local end_pos = vim.fn.getpos("'>")
+    local start_line = start_pos[2] - 1
+    local end_line = end_pos[2]
+    lines = vim.api.nvim_buf_get_lines(0, start_line, end_line, false)
+  else
+    -- Get all lines from buffer
+    lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  end
+  
   local query = table.concat(lines, ' '):gsub('"', '\\"'):gsub('%s+', ' ')
 
   -- Build sqlcmd command
@@ -299,7 +312,10 @@ vim.keymap.set('n', '<leader>sq', function()
       vim.api.nvim_echo({ { "SQL query cancelled", "WarningMsg" } }, false, {})
     end
   end, { buffer = 0, desc = "Cancel SQL query" })
-end, { desc = "Run entire buffer as SQL query with sqlcmd → VisiData" })
+end
+
+vim.keymap.set('n', '<leader>sq', run_sql_query, { desc = "Run entire buffer as SQL query with sqlcmd → VisiData" })
+vim.keymap.set('v', '<leader>sq', run_sql_query, { desc = "Run visual selection as SQL query with sqlcmd → VisiData" })
 
 -- QoL: auto-enter terminal mode when opening any :terminal buffer
 vim.api.nvim_create_autocmd("TermOpen", {
