@@ -32,11 +32,21 @@ return {
     -- elsewhere in your config, without redefining it, due to `opts_extend`
     opts.sources = {
       default = { "lsp", "path", "snippets", "buffer" },
+      per_filetype = {
+        sql = { "sql_schema", "snippets", "buffer" },
+      },
       providers = {
         markdown = {
           name = "RenderMarkdown",
           module = "render-markdown.integ.blink",
           fallbacks = { "lsp" },
+        },
+        sql_schema = {
+          name = "SQL Schema",
+          module = "blink.cmp.sources.sql_schema",
+          enabled = function()
+            return vim.bo.filetype == "sql"
+          end,
         },
       },
     }
@@ -77,7 +87,7 @@ return {
     return opts
   end,
 
-  -- Markdown specific autocmds
+  -- Filetype specific autocmds
   init = function()
     -- Markdown-specific less intrusive completion
     vim.api.nvim_create_autocmd("FileType", {
@@ -89,6 +99,20 @@ return {
         -- Use native vim completion for markdown
         vim.opt_local.completeopt = "menu,menuone,noinsert,noselect"
         vim.opt_local.complete = ".,w,b,t" -- Current buffer, windows, other buffers, tags
+      end,
+    })
+    
+    -- SQL files: pre-load schema for better completion
+    vim.api.nvim_create_autocmd("FileType", {
+      pattern = { "sql" },
+      callback = function()
+        -- Pre-load tables in the background
+        vim.defer_fn(function()
+          local ok, sql_schema = pcall(require, 'utils.sql_schema')
+          if ok then
+            sql_schema.get_tables(function() end) -- Warm up the cache
+          end
+        end, 1000) -- Wait 1 second after opening file
       end,
     })
   end,

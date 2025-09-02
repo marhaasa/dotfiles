@@ -317,6 +317,40 @@ end
 vim.keymap.set('n', '<leader>sq', run_sql_query, { desc = "Run entire buffer as SQL query with sqlcmd → VisiData" })
 vim.keymap.set('v', '<leader>sq', run_sql_query, { desc = "Run visual selection as SQL query with sqlcmd → VisiData" })
 
+-- SQL schema cache management
+vim.keymap.set('n', '<leader>sr', function()
+  local sql_schema = require('utils.sql_schema')
+  sql_schema.clear_cache()
+  print("SQL schema cache cleared")
+end, { desc = "Refresh SQL schema cache" })
+
+vim.keymap.set('n', '<leader>ss', function()
+  local sql_schema = require('utils.sql_schema')
+  local status = sql_schema.get_cache_status()
+  print("SQL Cache Status:")
+  print("Connection: " .. status.connection)
+  print("Tables cached: " .. status.tables_count)
+  print("Column sets cached: " .. status.columns_count)
+  if status.tables_age then
+    print("Tables cache age: " .. status.tables_age .. "s")
+  end
+end, { desc = "Show SQL schema cache status" })
+
+-- SQL completion trigger (only in SQL files)
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "sql",
+  callback = function()
+    vim.keymap.set('i', '<C-Space>', function()
+      local blink = require('blink.cmp')
+      if blink.is_visible() then
+        blink.hide()
+      else
+        blink.show()
+      end
+    end, { desc = "Toggle SQL completion", buffer = true })
+  end,
+})
+
 -- QoL: auto-enter terminal mode when opening any :terminal buffer
 vim.api.nvim_create_autocmd("TermOpen", {
   pattern = "*",
