@@ -38,29 +38,12 @@ return {
           module = "render-markdown.integ.blink",
           fallbacks = { "lsp" },
         },
-        -- Better buffer completion for SQL files
-        buffer = {
-          opts = {
-            -- Include more SQL-like patterns in buffer completion
-            get_bufnrs = function()
-              -- Include all SQL buffers for better completion context
-              local bufs = {}
-              for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-                if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].filetype:match("sql") then
-                  table.insert(bufs, buf)
-                end
-              end
-              return bufs
-            end,
-          },
-        },
       },
     }
 
-    -- SQL-specific completion configuration
     opts.completion = {
       list = {
-        max_items = 50, -- Show more items for SQL (many keywords/functions)
+        max_items = 50,
       },
       menu = {
         draw = {
@@ -94,23 +77,8 @@ return {
     return opts
   end,
 
-  -- SQL and Markdown specific autocmds
+  -- Markdown specific autocmds
   init = function()
-    vim.api.nvim_create_autocmd("FileType", {
-      pattern = { "sql", "mysql", "plsql" },
-      callback = function()
-        -- Enable more aggressive completion for SQL files
-        vim.opt_local.completeopt = "menu,menuone,noselect,noinsert"
-
-        -- SQL-specific completion settings
-        vim.b.blink_cmp_config = {
-          sources = {
-            default = { "buffer", "snippets", "path" }, -- Use buffer/snippets since sqls LSP may be disabled
-          },
-        }
-      end,
-    })
-
     -- Markdown-specific less intrusive completion
     vim.api.nvim_create_autocmd("FileType", {
       pattern = { "markdown", "md" },

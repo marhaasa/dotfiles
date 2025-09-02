@@ -75,6 +75,37 @@ vim.api.nvim_create_autocmd("filetype", {
 --  command = ":%!sqlformat",
 --})
 
+-- Prevent sqls LSP from attaching to SQL files
+vim.api.nvim_create_autocmd("LspAttach", {
+  callback = function(args)
+    local client = vim.lsp.get_client_by_id(args.data.client_id)
+    if client and client.name == "sqls" then
+      vim.lsp.buf_detach_client(args.buf, client.id)
+      -- Silently detach without notification to avoid spam
+    end
+  end,
+})
+
+-- Suppress sqls connection error messages
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "sql", "mysql", "plsql" },
+  callback = function()
+    -- Override vim.notify to suppress sqls-related messages
+    local original_notify = vim.notify
+    vim.notify = function(msg, level, opts)
+      if type(msg) == "string" and (
+        msg:match("sqls.*no database connection") or 
+        msg:match("LSP%[sqls%]") or
+        msg:match("database connection")
+      ) then
+        -- Silently ignore sqls connection messages
+        return
+      end
+      return original_notify(msg, level, opts)
+    end
+  end,
+})
+
 function _G.extract_tasks_and_remind()
   -- Redirect the output of the :g command to a variable
   vim.cmd("silent! redir => tasks")
