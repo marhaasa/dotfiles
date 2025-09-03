@@ -20,10 +20,8 @@ opt.linebreak = true
 opt.cmdheight = 0
 opt.fillchars = { eob = " " }
 opt.showtabline = 0
--- opt.laststatus = 0  -- Commented out to enable custom statusline
+opt.laststatus = 2  -- Always show statusline (standard behavior)
 opt.ruler = false
 opt.showcmd = false
-
-opt.laststatus = 2  -- Always show statusline
 
 -- Note: Zettelkasten functions and keymaps have been moved to lua/config/keymaps.lua
