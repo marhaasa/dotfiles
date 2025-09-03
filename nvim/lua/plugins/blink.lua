@@ -1,5 +1,7 @@
 return {
-  "saghen/blink.cmp",
+  {
+    "saghen/blink.cmp",
+    name = "blink.cmp",
   -- optional: provides snippets for the snippet source
   dependencies = "rafamadriz/friendly-snippets",
 
@@ -14,9 +16,6 @@ return {
   ---@type blink.cmp.Config
   opts = function(_, opts)
     opts = opts or {}
-    
-    -- Base configuration
-    opts.keymap = { preset = "super-tab" }
     
     opts.appearance = {
       -- Sets the fallback highlight groups to nvim-cmp's highlight groups
@@ -68,13 +67,16 @@ return {
       },
     }
 
-    -- Enhanced keymaps
-    opts.keymap = vim.tbl_extend("force", opts.keymap or {}, {
-      preset = "super-tab",
-      ["<C-Space>"] = { "show", "show_documentation", "hide_documentation" },
+    -- Enhanced keymaps  
+    opts.keymap = {
+      preset = "default",
+      ["<C-space>"] = { "show", "show_documentation", "hide_documentation" },
       ["<C-f>"] = { "scroll_documentation_down" },
       ["<C-b>"] = { "scroll_documentation_up" },
-    })
+      ["<Tab>"] = { "select_next", "fallback" },
+      ["<S-Tab>"] = { "select_prev", "fallback" },
+      ["<CR>"] = { "accept", "fallback" },
+    }
 
     -- Disable completion based on buffer variable
     opts.enabled = function()
@@ -118,4 +120,5 @@ return {
   end,
   
   opts_extend = { "sources.default" },
+  },
 }
