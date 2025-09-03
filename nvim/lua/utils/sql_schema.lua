@@ -3,6 +3,7 @@ local M = {}
 local cache = {
   tables = {},
   columns = {},
+  views = {},
   last_updated = {},
   connection_params = nil,
 }
@@ -19,7 +20,7 @@ end
 local function is_cache_valid(key)
   local current_connection = get_connection_params()
   if cache.connection_params ~= current_connection then
-    cache = { tables = {}, columns = {}, last_updated = {}, connection_params = current_connection }
+    cache = { tables = {}, columns = {}, views = {}, last_updated = {}, connection_params = current_connection }
     return false
   end
   
@@ -120,34 +121,34 @@ function M.get_tables(callback)
   end)
 end
 
-function M.get_columns(table_name, callback)
-  local cache_key = "columns:" .. table_name
+function M.get_columns(table_or_view_name, callback)
+  local cache_key = "columns:" .. table_or_view_name
   
-  if is_cache_valid(cache_key) and cache.columns[table_name] then
-    callback(cache.columns[table_name], nil)
+  if is_cache_valid(cache_key) and cache.columns[table_or_view_name] then
+    callback(cache.columns[table_or_view_name], nil)
     return
   end
 
-  -- Handle both "table" and "schema.table" formats
-  local schema, tbl = table_name:match("^([^%.]+)%.([^%.]+)$")
+  -- Handle both "table/view" and "schema.table/view" formats
+  local schema, tbl_or_view = table_or_view_name:match("^([^%.]+)%.([^%.]+)$")
   local query
   
-  if schema and tbl then
-    -- Schema-qualified table name
+  if schema and tbl_or_view then
+    -- Schema-qualified table/view name
     query = string.format([[
       SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
       FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'
       ORDER BY ORDINAL_POSITION
-    ]], schema:gsub("'", "''"), tbl:gsub("'", "''"))
+    ]], schema:gsub("'", "''"), tbl_or_view:gsub("'", "''"))
   else
-    -- Just table name (search all schemas)
+    -- Just table/view name (search all schemas)
     query = string.format([[
       SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
       FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_NAME = '%s'
       ORDER BY ORDINAL_POSITION
-    ]], table_name:gsub("'", "''"))
+    ]], table_or_view_name:gsub("'", "''"))
   end
 
   execute_sqlcmd(query, function(result, error)
@@ -179,9 +180,44 @@ function M.get_columns(table_name, callback)
       end
     end
     
-    cache.columns[table_name] = columns
+    cache.columns[table_or_view_name] = columns
     cache.last_updated[cache_key] = os.time()
     callback(columns, nil)
+  end)
+end
+
+function M.get_views(callback)
+  local cache_key = "views"
+  
+  if is_cache_valid(cache_key) and #cache.views > 0 then
+    callback(cache.views, nil)
+    return
+  end
+
+  local query = [[
+    SELECT TABLE_SCHEMA + '.' + TABLE_NAME as FULL_VIEW_NAME
+    FROM INFORMATION_SCHEMA.VIEWS 
+    WHERE TABLE_SCHEMA NOT IN ('sys', 'INFORMATION_SCHEMA')
+    ORDER BY TABLE_SCHEMA, TABLE_NAME
+  ]]
+
+  execute_sqlcmd(query, function(result, error)
+    if error then
+      callback({}, error)
+      return
+    end
+    
+    local views = {}
+    for _, line in ipairs(result) do
+      local view_name = line:gsub("^%s*(.-)%s*$", "%1") -- trim whitespace
+      if view_name ~= "" then
+        table.insert(views, view_name)
+      end
+    end
+    
+    cache.views = views
+    cache.last_updated[cache_key] = os.time()
+    callback(views, nil)
   end)
 end
 
@@ -189,6 +225,7 @@ function M.clear_cache()
   cache = {
     tables = {},
     columns = {},
+    views = {},
     last_updated = {},
     connection_params = get_connection_params(),
   }
@@ -200,6 +237,7 @@ function M.get_cache_status()
   
   status.connection = cache.connection_params or "not connected"
   status.tables_count = #cache.tables
+  status.views_count = #cache.views
   status.columns_count = 0
   for _ in pairs(cache.columns) do
     status.columns_count = status.columns_count + 1

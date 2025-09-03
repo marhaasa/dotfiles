@@ -111,31 +111,60 @@ function M:get_completions(context, callback)
       callback({ items = items })
     end)
   elseif schema_only then
-    -- Schema-to-table completion: show tables in this schema
-    sql_schema.get_tables(function(tables, error)
-      if error or not tables then
-        callback({ items = {} })
-        return
+    -- Schema-to-table/view completion: show tables and views in this schema
+    local items = {}
+    local completed_count = 0
+    local expected_count = 2
+    
+    local function check_completion()
+      completed_count = completed_count + 1
+      if completed_count >= expected_count then
+        callback({ items = items })
       end
-      
-      local items = {}
-      local schema_prefix = schema_only:lower() .. "."
-      
-      for _, table_name in ipairs(tables) do
-        if table_name:lower():sub(1, #schema_prefix) == schema_prefix then
-          -- Extract just the table name without schema
-          local just_table_name = table_name:sub(#schema_only + 2) -- +2 for the dot
-          
-          table.insert(items, {
-            label = just_table_name,
-            kind = 21, -- Class
-            detail = "table in " .. schema_only,
-            insertText = just_table_name,
-          })
+    end
+    
+    -- Get tables
+    sql_schema.get_tables(function(tables, error)
+      if not error and tables then
+        local schema_prefix = schema_only:lower() .. "."
+        
+        for _, table_name in ipairs(tables) do
+          if table_name:lower():sub(1, #schema_prefix) == schema_prefix then
+            -- Extract just the table name without schema
+            local just_table_name = table_name:sub(#schema_only + 2) -- +2 for the dot
+            
+            table.insert(items, {
+              label = just_table_name,
+              kind = 21, -- Class
+              detail = "table in " .. schema_only,
+              insertText = just_table_name,
+            })
+          end
         end
       end
-      
-      callback({ items = items })
+      check_completion()
+    end)
+    
+    -- Get views
+    sql_schema.get_views(function(views, error)
+      if not error and views then
+        local schema_prefix = schema_only:lower() .. "."
+        
+        for _, view_name in ipairs(views) do
+          if view_name:lower():sub(1, #schema_prefix) == schema_prefix then
+            -- Extract just the view name without schema
+            local just_view_name = view_name:sub(#schema_only + 2) -- +2 for the dot
+            
+            table.insert(items, {
+              label = just_view_name,
+              kind = 8, -- Interface (different from tables)
+              detail = "view in " .. schema_only,
+              insertText = just_view_name,
+            })
+          end
+        end
+      end
+      check_completion()
     end)
   elseif table_column and not table_column:match("%.") then
     -- Column completion for just table.column (no schema)
@@ -158,24 +187,46 @@ function M:get_completions(context, callback)
       callback({ items = items })
     end)
   else
-    -- Table completion - show all schema.table combinations
+    -- Table and view completion - show all schema.table and schema.view combinations
+    local items = {}
+    local completed_count = 0
+    local expected_count = 2
+    
+    local function check_completion()
+      completed_count = completed_count + 1
+      if completed_count >= expected_count then
+        callback({ items = items })
+      end
+    end
+    
+    -- Get tables
     sql_schema.get_tables(function(tables, error)
-      if error or not tables then
-        callback({ items = {} })
-        return
+      if not error and tables then
+        for _, table_name in ipairs(tables) do
+          table.insert(items, {
+            label = table_name,
+            kind = 21, -- Class
+            detail = "table",
+            insertText = table_name,
+          })
+        end
       end
-      
-      local items = {}
-      for _, table_name in ipairs(tables) do
-        table.insert(items, {
-          label = table_name,
-          kind = 21, -- Class
-          detail = "table",
-          insertText = table_name,
-        })
+      check_completion()
+    end)
+    
+    -- Get views
+    sql_schema.get_views(function(views, error)
+      if not error and views then
+        for _, view_name in ipairs(views) do
+          table.insert(items, {
+            label = view_name,
+            kind = 8, -- Interface
+            detail = "view",
+            insertText = view_name,
+          })
+        end
       end
-      
-      callback({ items = items })
+      check_completion()
     end)
   end
 end
