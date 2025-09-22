@@ -112,7 +112,7 @@ alias la='ls -lathr'
 alias python="python3"
 alias v=nvim
 alias claude="/Users/mariushogliaasarod/.claude/local/claude"
-
+alias ld='lazydocker'
 # finds all files recursively and sorts by last modification, ignore hidden files
 alias lastmod='find . -type f -not -path "*/\.*" -exec ls -lrt {} +'
 
