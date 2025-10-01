@@ -15,8 +15,19 @@ function icloud_backup() {
     echo ""
 
     # for testing: use --dry-run
-    rsync --verbose --recursive --prune-empty-dirs --delete-before --whole-file --times --exclude=".DS_Store" --exclude=".Trash/" "$SRC" "$DEST"
-
+    rsync \
+      --verbose \
+      --recursive \
+      --times \
+      --no-perms \
+      --delete-after \
+      --prune-empty-dirs \
+      --exclude=".DS_Store" \
+      --exclude=".Trash/" \
+      --exclude="*.tmp" \
+      --exclude=".DocumentRevisions-V100/" \
+      "$SRC" "$DEST"
+    
     echo ""
     echo "🌈  Done!"
     echo ""

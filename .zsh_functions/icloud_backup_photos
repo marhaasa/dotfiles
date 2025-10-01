@@ -1,15 +1,14 @@
-function backup_icloud_photos() {
-    set -euo pipefail
+function icloud_backup_photos() {
 
-    local args=(
-        --delete
-        --human-readable
-        --no-perms
-        --partial
-        --progress
-        --times
-        -v
-    )
+  local args=(
+    -r              # Recursive
+    --times         # Preserve modification times (important for change detection)
+    --no-perms      # Skip permissions (good for most external drives)
+    --human-readable
+    --partial
+    --progress
+    -v
+)
 
     local USER="$(whoami)"
     local src="/Users/$USER/Pictures/Photos Library.photoslibrary/originals/"
