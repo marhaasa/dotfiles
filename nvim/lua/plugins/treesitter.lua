@@ -1,10 +1,14 @@
 return {
   "nvim-treesitter/nvim-treesitter",
   build = ":TSUpdate",
-  event = { "BufReadPost", "BufNewFile" }, -- Lazy load on file open
+  event = { "BufReadPost", "BufNewFile" },
   cmd = { "TSUpdateSync", "TSUpdate", "TSInstall" },
   config = function()
-    require("nvim-treesitter.configs").setup({
+    local ok, configs = pcall(require, "nvim-treesitter.configs")
+    if not ok then
+      return
+    end
+    configs.setup({
       -- Only install parsers for languages you actively use
       ensure_installed = {
         "lua",

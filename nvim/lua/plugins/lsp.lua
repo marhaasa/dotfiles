@@ -17,7 +17,7 @@ return {
   
   -- Ensure mason doesn't try to setup sqls
   {
-    "williamboman/mason-lspconfig.nvim",
+    "mason-org/mason-lspconfig.nvim",
     opts = function(_, opts)
       opts.handlers = opts.handlers or {}
       -- Explicitly disable sqls handler with empty function

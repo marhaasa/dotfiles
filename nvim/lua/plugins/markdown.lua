@@ -2,7 +2,7 @@ return {
   "MeanderingProgrammer/render-markdown.nvim",
   lazy = true, -- Don't load until needed
   ft = { "markdown", "md" }, -- Load when opening markdown files
-  dependencies = { "nvim-treesitter/nvim-treesitter", "echasnovski/mini.nvim" },
+  dependencies = { "nvim-treesitter/nvim-treesitter", "nvim-mini/mini.nvim" },
   ---@module 'render-markdown'
   ---@type render.md.UserConfig
   opts = {
