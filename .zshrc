@@ -148,6 +148,8 @@ autoload -Uz icloud_backup
 
 autoload -Uz icloud_backup_photos
 
+autoload -Uz command_docs
+
 
 # ~~~~~~~~~~~~~~~ Completion ~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -1,0 +1,71 @@
+command_docs() {
+  local filename commands_selected output_file timestamp existing_file numbered_commands
+
+  echo "Enter filename for documentation (without .md extension):"
+  read filename
+
+  if [[ -z "$filename" ]]; then
+    echo "Error: Filename cannot be empty"
+    return 1
+  fi
+
+  existing_file=$(find "$NOTES" -type f -name "${filename}.md" 2>/dev/null | head -n 1)
+
+  if [[ -n "$existing_file" ]]; then
+    output_file="$existing_file"
+    echo "Found existing file: $output_file"
+    echo "File will be overwritten. Continue? (y/n)"
+    read -k 1 response
+    echo
+    if [[ "$response" != "y" ]]; then
+      echo "Aborted."
+      return 1
+    fi
+  else
+    output_file="$NOTES/0-inbox/${filename}.md"
+  fi
+
+  commands_selected=$(fc -ln 0 | awk '!a[$0]++' | fzf --tac --multi --bind 'tab:toggle+down' --header 'Select commands to document (TAB to select, ENTER when done)')
+
+  if [[ -z "$commands_selected" ]]; then
+    echo "No commands selected. Aborted."
+    return 1
+  fi
+
+  timestamp=$(date '+%Y-%m-%d %H:%M')
+
+  echo "# $filename" > "$output_file"
+  echo "" >> "$output_file"
+  echo "Created: $timestamp" >> "$output_file"
+  echo "" >> "$output_file"
+  echo "## Commands" >> "$output_file"
+  echo "" >> "$output_file"
+
+  local counter=1
+  while IFS= read -r cmd; do
+    cmd=$(echo "$cmd" | sed 's/^[[:space:]]*//')
+    echo "### ${counter}) Command" >> "$output_file"
+    echo "" >> "$output_file"
+    echo '```bash' >> "$output_file"
+    echo "${cmd}" >> "$output_file"
+    echo '```' >> "$output_file"
+    echo "" >> "$output_file"
+    ((counter++))
+  done <<< "$commands_selected"
+
+  echo "## Description" >> "$output_file"
+  echo "" >> "$output_file"
+  echo "<!-- Add your description here -->" >> "$output_file"
+  echo "" >> "$output_file"
+  echo "## Changes Made" >> "$output_file"
+  echo "" >> "$output_file"
+  echo "<!-- Document what was changed -->" >> "$output_file"
+  echo "" >> "$output_file"
+  echo "## Notes" >> "$output_file"
+  echo "" >> "$output_file"
+  echo "<!-- Any additional notes -->" >> "$output_file"
+
+  echo "Documentation created at: $output_file"
+  echo "Opening in nvim..."
+  nvim "$output_file"
+}
