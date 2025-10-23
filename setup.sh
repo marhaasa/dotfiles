@@ -169,7 +169,7 @@ setup_macos_specific() {
 
   # Add your favorite apps in order:
   dockutil --add "/Applications/Ghostty.app" --position 1
-  dockutil --add "/Applications/Arc.app" --position 2
+  dockutil --add "/System/Applications/Safari.app" --position 2
   dockutil --add "/Applications/Claude.app" --position 3
   dockutil --add "/System/Applications/Calendar.app" --position 4
   dockutil --add "/System/Applications/Music.app" --position 5

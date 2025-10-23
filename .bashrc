@@ -72,4 +72,3 @@ bind 'set completion-ignore-case on'
 # ~~~~~~~~~~~~~~~ Prompt ~~~~~~~~~~~~~~~~~~~~~~~~
 eval "$(starship init bash)"
 
-alias claude="/Users/mariushogliaasarod/.claude/local/claude"
