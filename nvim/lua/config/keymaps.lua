@@ -170,7 +170,7 @@ local function run_sql_query()
 
   local cmd = { "sqlcmd", "-S", server, "-d", db }
   if auth and auth ~= "" then table.insert(cmd, auth) end
-  vim.list_extend(cmd, { "-Q", query, "-s", ",", "-W" })
+  vim.list_extend(cmd, { "-Q", query, "-s", "\t", "-W" })
 
   -- Test if sqlcmd exists first
   if vim.fn.executable("sqlcmd") == 0 then
@@ -273,7 +273,7 @@ local function run_sql_query()
           end, { buffer = buf })
         else
           -- Success: write CSV and open VisiData
-          local tmp = vim.fn.tempname() .. ".csv"
+          local tmp = vim.fn.tempname() .. ".tsv"
           local f = io.open(tmp, "w")
           for _, line in ipairs(clean_lines) do
             f:write(line .. "\n")
@@ -285,7 +285,7 @@ local function run_sql_query()
           vim.api.nvim_win_set_buf(0, term_buf)
           vim.api.nvim_buf_set_option(term_buf, 'swapfile', false)
 
-          vim.fn.termopen({ "vd", "-f", "csv", tmp }, {
+          vim.fn.termopen({ "vd", "-f", "tsv", tmp }, {
             on_exit = function()
               os.remove(tmp)
               vim.schedule(function()
