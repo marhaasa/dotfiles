@@ -1,0 +1,93 @@
+# Build SQL Server Database Project (.sqlproj) in current directory
+buildsql() {
+  local build_dir="$HOME/.local/share/sqlproj-build"
+  local version_file="$build_dir/.version"
+  local latest_version
+
+  # Check latest version from NuGet (exclude preview/rc versions)
+  latest_version=$(curl -sL "https://api.nuget.org/v3-flatcontainer/microsoft.build.sql/index.json" 2>/dev/null | grep -o '"[0-9][^"]*"' | tr -d '"' | grep -v -E 'preview|rc' | sort -V | tail -1)
+
+  if [[ -z "$latest_version" ]]; then
+    echo "Warning: Could not check for updates, using existing build targets" >&2
+  else
+    local current_version=""
+    [[ -f "$version_file" ]] && current_version=$(cat "$version_file")
+
+    if [[ "$current_version" != "$latest_version" ]]; then
+      echo "Updating SQL build targets: ${current_version:-none} -> $latest_version"
+      local temp_dir=$(mktemp -d)
+
+      if curl -sL "https://www.nuget.org/api/v2/package/Microsoft.Build.Sql/$latest_version" -o "$temp_dir/pkg.nupkg"; then
+        unzip -q "$temp_dir/pkg.nupkg" -d "$temp_dir/extracted"
+        mkdir -p "$build_dir"
+        rm -rf "${build_dir:?}"/*
+
+        # Copy from net8.0 (current), fall back to netstandard2.1 (older versions)
+        if [[ -d "$temp_dir/extracted/tools/net8.0" ]]; then
+          cp -R "$temp_dir/extracted/tools/net8.0"/* "$build_dir/"
+        elif [[ -d "$temp_dir/extracted/tools/netstandard2.1" ]]; then
+          cp -R "$temp_dir/extracted/tools/netstandard2.1"/* "$build_dir/"
+        fi
+
+        # Download SystemDacpacs from Microsoft.SqlServer.Dacpacs
+        echo "Downloading SystemDacpacs..."
+        local dacpac_version=$(curl -sL "https://api.nuget.org/v3-flatcontainer/microsoft.sqlserver.dacpacs.azure/index.json" 2>/dev/null | grep -o '"[0-9][^"]*"' | tr -d '"' | sort -V | tail -1)
+        if [[ -n "$dacpac_version" ]]; then
+          mkdir -p "$build_dir/SystemDacpacs/AzureV12"
+          curl -sL "https://www.nuget.org/api/v2/package/Microsoft.SqlServer.Dacpacs.Azure/$dacpac_version" -o "$temp_dir/dacpacs.nupkg"
+          unzip -q "$temp_dir/dacpacs.nupkg" -d "$temp_dir/dacpacs"
+          cp "$temp_dir/dacpacs/tools"/*.dacpac "$build_dir/SystemDacpacs/AzureV12/" 2>/dev/null || true
+        fi
+
+        echo "$latest_version" > "$version_file"
+        echo "Updated to version $latest_version"
+      else
+        echo "Warning: Failed to download update" >&2
+      fi
+
+      rm -rf "$temp_dir"
+    fi
+  fi
+
+  if [[ ! -d "$build_dir" ]] || [[ ! -f "$build_dir/Microsoft.Data.Tools.Schema.SqlTasks.targets" ]]; then
+    echo "Error: SQL build targets not found and could not be downloaded" >&2
+    return 1
+  fi
+
+  # Find .sqlproj files
+  local sqlproj_files=( **/*.sqlproj(N.) )
+
+  if (( ${#sqlproj_files} == 0 )); then
+    echo "Error: No .sqlproj file found in current directory or subdirectories" >&2
+    return 1
+  fi
+
+  local project
+  if (( ${#sqlproj_files} == 1 )); then
+    project="${sqlproj_files[1]}"
+  else
+    echo "Select a .sqlproj file to build:"
+    local i=1
+    for f in "${sqlproj_files[@]}"; do
+      echo "  $i) $f"
+      ((i++))
+    done
+
+    local selection
+    echo -n "Enter number [1-${#sqlproj_files}]: "
+    read selection
+
+    if ! [[ "$selection" =~ ^[0-9]+$ ]] || (( selection < 1 || selection > ${#sqlproj_files} )); then
+      echo "Invalid selection" >&2
+      return 1
+    fi
+
+    project="${sqlproj_files[$selection]}"
+  fi
+
+  echo "Building: $project"
+  dotnet build "$project" \
+    /p:NetCoreBuild=true \
+    /p:SystemDacpacsLocation="$build_dir" \
+    /p:NETCoreTargetsPath="$build_dir"
+}

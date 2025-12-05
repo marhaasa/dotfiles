@@ -151,6 +151,7 @@ autoload -Uz icloud_backup_photos
 
 autoload -Uz command_docs
 
+autoload -Uz buildsql
 
 # ~~~~~~~~~~~~~~~ Completion ~~~~~~~~~~~~~~~~~~~~~~~~
 
