@@ -1,0 +1,95 @@
+# Generate SQL change script from .dacpac using sqlpackage
+sqlchanges() {
+  # Find .dacpac files
+  local dacpac_files=( **/*.dacpac(N.) )
+
+  if (( ${#dacpac_files} == 0 )); then
+    echo "Error: No .dacpac file found in current directory or subdirectories" >&2
+    echo "Run 'buildsql' first to build the project" >&2
+    return 1
+  fi
+
+  local dacpac
+  if (( ${#dacpac_files} == 1 )); then
+    dacpac="${dacpac_files[1]}"
+  else
+    echo "Select a .dacpac file:"
+    local i=1
+    for f in "${dacpac_files[@]}"; do
+      echo "  $i) $f"
+      ((i++))
+    done
+
+    local selection
+    echo -n "Enter number [1-${#dacpac_files}]: "
+    read selection
+
+    if ! [[ "$selection" =~ ^[0-9]+$ ]] || (( selection < 1 || selection > ${#dacpac_files} )); then
+      echo "Invalid selection" >&2
+      return 1
+    fi
+
+    dacpac="${dacpac_files[$selection]}"
+  fi
+
+  # Get connection details
+  local server="${SQLSERVER:-localhost}"
+  local database="${SQLDB:-DW}"
+
+  echo "Target server: $server"
+  echo "Target database: $database"
+  echo -n "Use these settings? [Y/n]: "
+  read confirm
+  if [[ "$confirm" =~ ^[Nn] ]]; then
+    echo -n "Enter server: "
+    read server
+    echo -n "Enter database: "
+    read database
+  fi
+
+  # Output path
+  local output_dir="${PWD}"
+  local output_file="${output_dir}/Changes.sql"
+
+  echo "Generating change script..."
+  echo "Source: $dacpac"
+  echo "Output: $output_file"
+
+  if ! DOTNET_ROOT="/opt/homebrew/opt/dotnet@8/libexec" sqlpackage \
+    /Action:Script \
+    /SourceFile:"$dacpac" \
+    /TargetConnectionString:"Server=$server;Database=$database;Authentication=Active Directory Default;" \
+    /OutputPath:"$output_file"; then
+    echo "Error: sqlpackage failed" >&2
+    return 1
+  fi
+
+  if [[ ! -f "$output_file" ]]; then
+    echo "Error: Output file was not created" >&2
+    return 1
+  fi
+
+  echo ""
+  echo "=== Change Summary ==="
+  echo ""
+
+  # Parse PRINT statements which indicate actual schema changes
+  local drops=$(grep -c "^PRINT N'Dropping " "$output_file" 2>/dev/null) || drops=0
+  local creates=$(grep -c "^PRINT N'Creating " "$output_file" 2>/dev/null) || creates=0
+  local alters=$(grep -c "^PRINT N'Altering " "$output_file" 2>/dev/null) || alters=0
+
+  printf "DROP:   %d\n" "$drops"
+  printf "CREATE: %d\n" "$creates"
+  printf "ALTER:  %d\n" "$alters"
+  echo ""
+
+  # Show details if any destructive operations
+  if (( drops > 0 )); then
+    echo "⚠️  DROP operations:"
+    grep "^PRINT N'Dropping " "$output_file" | sed "s/^PRINT N'//;s/';\$//" | head -20
+    (( drops > 20 )) && echo "  ... and $((drops - 20)) more"
+    echo ""
+  fi
+
+  echo "Script saved to: $output_file"
+}

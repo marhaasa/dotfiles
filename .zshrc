@@ -153,6 +153,8 @@ autoload -Uz command_docs
 
 autoload -Uz buildsql
 
+autoload -Uz sqlchanges
+
 # ~~~~~~~~~~~~~~~ Completion ~~~~~~~~~~~~~~~~~~~~~~~~
 
 
