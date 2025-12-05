@@ -317,6 +317,171 @@ end
 vim.keymap.set('n', '<leader>sq', run_sql_query, { desc = "Run entire buffer as SQL query with sqlcmd → VisiData" })
 vim.keymap.set('v', '<leader>sq', run_sql_query, { desc = "Run visual selection as SQL query with sqlcmd → VisiData" })
 
+local function run_sql_script()
+  -- Get buffer content (entire buffer or visual selection)
+  local lines
+  local mode = vim.api.nvim_get_mode().mode
+
+  if mode == 'v' or mode == 'V' or mode == '\22' then
+    local start_pos = vim.fn.getpos("'<")
+    local end_pos = vim.fn.getpos("'>")
+    local start_line = start_pos[2] - 1
+    local end_line = end_pos[2]
+    lines = vim.api.nvim_buf_get_lines(0, start_line, end_line, false)
+  else
+    lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  end
+
+  -- Write to temp file (preserving line breaks for GO statements)
+  local tmp = vim.fn.tempname() .. ".sql"
+  local f = io.open(tmp, "w")
+  for _, line in ipairs(lines) do
+    f:write(line .. "\n")
+  end
+  f:close()
+
+  -- Build sqlcmd command with -i (input file) instead of -Q
+  local server = os.getenv("SQLSERVER") or "localhost"
+  local db = os.getenv("SQLDB") or "DW"
+  local auth = os.getenv("SQLAUTH")
+
+  local cmd = { "sqlcmd", "-S", server, "-d", db }
+  if auth and auth ~= "" then table.insert(cmd, auth) end
+  vim.list_extend(cmd, { "-i", tmp })
+
+  if vim.fn.executable("sqlcmd") == 0 then
+    print("Error: sqlcmd not found in PATH")
+    os.remove(tmp)
+    return
+  end
+
+  -- Progress tracking
+  local start_time = vim.loop.now()
+  local progress_timer
+  local job_id
+
+  vim.api.nvim_echo({ { "Running SQL script...", "Normal" } }, false, {})
+
+  local function update_progress()
+    local elapsed = (vim.loop.now() - start_time) / 1000
+    local mins = math.floor(elapsed / 60)
+    local secs = math.floor(elapsed % 60)
+    local time_str = mins > 0 and string.format("%dm %02ds", mins, secs) or string.format("%ds", secs)
+
+    vim.schedule(function()
+      vim.api.nvim_echo({
+        { "SQL script running... ",     "Normal" },
+        { time_str,                     "Number" },
+        { " (Press Ctrl+C to cancel)",  "Comment" }
+      }, false, {})
+    end)
+  end
+
+  progress_timer = vim.loop.new_timer()
+  progress_timer:start(1000, 1000, update_progress)
+
+  local result_lines = {}
+  job_id = vim.fn.jobstart(cmd, {
+    stdout_buffered = true,
+    stderr_buffered = true,
+    on_stdout = function(_, data)
+      if data then
+        vim.list_extend(result_lines, data)
+      end
+    end,
+    on_stderr = function(_, data)
+      if data then
+        vim.list_extend(result_lines, data)
+      end
+    end,
+    on_exit = function(_, code)
+      if progress_timer then
+        progress_timer:stop()
+        progress_timer:close()
+      end
+
+      -- Clean up temp file
+      os.remove(tmp)
+
+      local elapsed = (vim.loop.now() - start_time) / 1000
+      local mins = math.floor(elapsed / 60)
+      local secs = math.floor(elapsed % 60)
+      local time_str = mins > 0 and string.format("%dm %02ds", mins, secs) or string.format("%.1fs", secs)
+
+      vim.schedule(function()
+        -- Filter empty lines
+        local clean_lines = {}
+        for _, line in ipairs(result_lines) do
+          if line ~= "" then
+            table.insert(clean_lines, line)
+          end
+        end
+
+        -- Show results in floating window
+        local buf = vim.api.nvim_create_buf(false, true)
+
+        -- Add status header
+        local status_msg = code == 0
+          and { "Script completed successfully in " .. time_str, "" }
+          or { "Script failed (exit code " .. code .. ") after " .. time_str, "" }
+
+        local display_lines = vim.list_extend(status_msg, clean_lines)
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, display_lines)
+        vim.bo[buf].filetype = "sql"
+        vim.bo[buf].modifiable = false
+
+        local width = math.min(math.floor(vim.o.columns * 0.8), 120)
+        local height = math.min(math.floor(vim.o.lines * 0.6), #display_lines + 2)
+        local row = math.floor((vim.o.lines - height) / 2)
+        local col = math.floor((vim.o.columns - width) / 2)
+
+        local win = vim.api.nvim_open_win(buf, true, {
+          relative = "editor",
+          width = width,
+          height = height,
+          row = row,
+          col = col,
+          border = "rounded",
+          style = "minimal",
+          title = code == 0 and " Script Output " or " Script Error ",
+          title_pos = "center",
+        })
+
+        -- Highlight status line
+        if code == 0 then
+          vim.api.nvim_buf_add_highlight(buf, -1, "DiagnosticOk", 0, 0, -1)
+        else
+          vim.api.nvim_buf_add_highlight(buf, -1, "DiagnosticError", 0, 0, -1)
+        end
+
+        vim.keymap.set("n", "q", function()
+          vim.api.nvim_win_close(win, true)
+        end, { buffer = buf })
+
+        vim.keymap.set("n", "<Esc>", function()
+          vim.api.nvim_win_close(win, true)
+        end, { buffer = buf })
+      end)
+    end
+  })
+
+  -- Allow cancelling with Ctrl+C
+  vim.keymap.set('n', '<C-c>', function()
+    if job_id then
+      vim.fn.jobstop(job_id)
+      if progress_timer then
+        progress_timer:stop()
+        progress_timer:close()
+      end
+      os.remove(tmp)
+      vim.api.nvim_echo({ { "SQL script cancelled", "WarningMsg" } }, false, {})
+    end
+  end, { buffer = 0, desc = "Cancel SQL script" })
+end
+
+vim.keymap.set('n', '<leader>sx', run_sql_script, { desc = "Execute SQL script (supports GO, :setvar)" })
+vim.keymap.set('v', '<leader>sx', run_sql_script, { desc = "Execute SQL script selection (supports GO, :setvar)" })
+
 -- SQL schema cache management
 vim.keymap.set('n', '<leader>sr', function()
   local sql_schema = require('utils.sql_schema')

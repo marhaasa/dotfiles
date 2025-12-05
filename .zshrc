@@ -35,12 +35,14 @@ setopt extended_glob null_glob
 path=(
     /opt/homebrew/opt/python@3.12/bin  # Homebrew Python first
     /opt/homebrew/bin
+    /opt/homebrew/opt/dotnet@8/bin
     $HOME/bin
     $HOME/.local/bin
     $HOME/go/bin
     $SCRIPTS
     /opt/homebrew/opt/mssql-tools18/bin
     /Applications/Docker.app/Contents/Resources/bin/
+    $HOME/.dotnet/tools
     $HOME/.cargo/bin
     $path  # Original PATH comes last
 )
