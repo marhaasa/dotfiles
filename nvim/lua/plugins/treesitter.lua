@@ -12,14 +12,14 @@ return {
       -- Only install parsers for languages you actively use
       ensure_installed = {
         "lua",
-        "python", 
+        "python",
         "javascript",
         "typescript",
         "bash",
         "json",
         "yaml",
         "go",
-        "sql",
+        -- "sql", -- Disabled: generic SQL parser doesn't support T-SQL/SQL Server
         "markdown",
         "markdown_inline",
       },
@@ -39,10 +39,15 @@ return {
           if ok and stats and stats.size > max_filesize then
             return true
           end
-          
+
           -- Disable for specific cases that cause issues
           local buf_name = vim.fn.expand("%")
           if lang == "terraform" and string.find(buf_name, "fixture") then
+            return true
+          end
+
+          -- Disable for SQL - the generic parser doesn't support T-SQL/SQL Server syntax
+          if lang == "sql" then
             return true
           end
         end,
