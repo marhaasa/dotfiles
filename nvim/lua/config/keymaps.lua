@@ -70,16 +70,20 @@ local function create_and_open_new_note()
   if title then
     local cmd = string.format('scribe new --vim "%s"', title)
     local output = vim.fn.system(cmd)
-    local file_path = output:match("New note created: (.+)")
 
-    if file_path then
-      file_path = file_path:gsub("%z", ""):gsub("\n", ""):gsub("^%s*(.-)%s*$", "%1")
-      vim.cmd("badd " .. vim.fn.fnameescape(file_path))
-      local bufnr = vim.fn.bufnr(file_path)
-      vim.api.nvim_set_current_buf(bufnr)
+    -- scribe outputs "Created note: filename.md" - extract the filename
+    local filename = output:match("Created note: (.+%.md)")
+
+    if filename then
+      filename = filename:gsub("%z", ""):gsub("\n", ""):gsub("^%s*(.-)%s*$", "%1")
+      -- Build full path in notes directory
+      local notes_dir = vim.fn.expand("~/notes")
+      local file_path = notes_dir .. "/" .. filename
+
+      vim.cmd("edit " .. vim.fn.fnameescape(file_path))
       print("Created and opened new note: " .. title)
     else
-      print("Failed to create note: " .. title)
+      print("Failed to create note. Output: " .. output)
     end
   else
     print("No title found between double square brackets")
@@ -87,12 +91,23 @@ local function create_and_open_new_note()
 end
 
 local function yank_and_open_markdown_link()
-  vim.cmd("normal! yi]")
-  local yanked_text = vim.fn.getreg('"')
-  yanked_text = yanked_text:gsub("%[%[(.-)%]%]", "%1")
+  -- Get the text inside wikilink brackets [[link]]
+  -- Position cursor inside the link, then search for the pattern
+  local line = vim.api.nvim_get_current_line()
+  local col = vim.api.nvim_win_get_cursor(0)[2] + 1 -- 1-indexed
 
-  if yanked_text == "" then
-    print("No text found inside brackets")
+  -- Find wikilink at cursor position
+  local link_text = nil
+  for match in line:gmatch("%[%[(.-)%]%]") do
+    local start_pos, end_pos = line:find("%[%[" .. match:gsub("([%.%^%$%(%)%[%]%*%+%-%?])", "%%%1") .. "%]%]")
+    if start_pos and col >= start_pos and col <= end_pos then
+      link_text = match
+      break
+    end
+  end
+
+  if not link_text or link_text == "" then
+    print("No wikilink found at cursor position")
     return
   end
 
@@ -102,25 +117,32 @@ local function yank_and_open_markdown_link()
   local notes_dir = vim.fn.expand("~/notes")
   local search_dir = vim.fn.isdirectory(notes_dir) == 1 and notes_dir or vim.loop.cwd()
 
-  -- Properly escape all special characters for Lua patterns
-  local function escape_pattern(text)
-    -- Escape all Lua pattern special characters
-    return text:gsub("([%.%^%$%(%)%[%]%*%+%-%?])", "%%%1")
+  -- Build case-insensitive pattern: "abc" -> "[Aa][Bb][Cc]"
+  local function case_insensitive_pattern(text)
+    return text:gsub(".", function(c)
+      if c:match("%a") then
+        return "[" .. c:upper() .. c:lower() .. "]"
+      elseif c:match("[%.%^%$%(%)%[%]%*%+%-%?]") then
+        return "%" .. c -- escape special chars
+      else
+        return c
+      end
+    end)
   end
 
-  local escaped_text = escape_pattern(yanked_text)
+  local pattern = case_insensitive_pattern(link_text)
 
   local files = scan.scan_dir(search_dir, {
-    depth = 5,
+    depth = 10,
     hidden = true,
     add_dirs = false,
-    search_pattern = ".*" .. escaped_text .. ".*%.md$",
+    search_pattern = "/" .. pattern .. "%.md$",
   })
 
   if #files > 0 then
     vim.cmd("edit " .. vim.fn.fnameescape(files[1]))
   else
-    print("No file found matching: " .. yanked_text)
+    print("No file found matching: " .. link_text)
   end
 end
 
