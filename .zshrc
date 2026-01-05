@@ -102,8 +102,8 @@ alias ..="cd .."
 alias repos="cd $REPOS"
 alias home="cd $HOME"
 alias notes="cd $NOTES && nvim -c 'Telescope find_files'"
-alias icloud="cd \$ICLOUD"
-alias dot="cd \$DOTFILES"
+alias icloud='cd $ICLOUD'
+alias dot='cd $DOTFILES'
 # ls
 alias ls='ls --color=auto'
 alias ll='ls -la'
@@ -136,8 +136,8 @@ alias hy="
 
 
 # ~~~~~~~~~~~~~~~ Sourcing ~~~~~~~~~~~~~~~~~~~~~~~~
-source <(fzf --zsh)
-eval $(thefuck --alias)
+command -v fzf >/dev/null && source <(fzf --zsh)
+command -v thefuck >/dev/null && eval $(thefuck --alias)
 
 # ~~~~~~~~~~~~~~~ Functions ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -149,7 +149,7 @@ autoload -Uz icloud_backup
 
 autoload -Uz icloud_backup_photos
 
-autoload -Uz command_docs
+autoload -Uz doc_commands
 
 autoload -Uz buildsql
 

@@ -1,0 +1,22 @@
+gui:
+  showIcons: true
+  nerdFontsVersion: "3"
+  theme:
+    lightTheme: false
+  showRandomTip: false
+  showCommandLog: false
+
+git:
+  paging:
+    colorArg: always
+    pager: delta --dark --paging=never
+  commit:
+    signOff: false
+
+os:
+  editPreset: "nvim"
+
+keybinding:
+  universal:
+    quit: "q"
+    return: "<esc>"
