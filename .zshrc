@@ -146,6 +146,8 @@ command -v thefuck >/dev/null && eval $(thefuck --alias)
 fpath=(~/.zsh_functions $fpath)
 autoload -Uz clone
 
+autoload -Uz azclone
+
 autoload -Uz icloud_backup
 
 autoload -Uz icloud_backup_photos

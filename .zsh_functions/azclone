@@ -1,0 +1,40 @@
+azclone() {
+  local url="$1" org project repo dest
+
+  if [[ -z "$url" ]]; then
+    echo "Usage: azclone <azure-devops-url>"
+    return 1
+  fi
+
+  if [[ "$url" =~ ^https://dev\.azure\.com/([^/]+)/([^/]+)/_git/(.+)$ ]]; then
+    org="${match[1]}"
+    project="${match[2]}"
+    repo="${match[3]}"
+  elif [[ "$url" =~ ^git@ssh\.dev\.azure\.com:v3/([^/]+)/([^/]+)/(.+)$ ]]; then
+    org="${match[1]}"
+    project="${match[2]}"
+    repo="${match[3]}"
+  else
+    echo "Invalid Azure DevOps URL format"
+    echo "Expected: https://dev.azure.com/org/project/_git/repo"
+    echo "      or: git@ssh.dev.azure.com:v3/org/project/repo"
+    return 1
+  fi
+
+  # URL decode %XX sequences
+  org="${org//%20/ }"
+  project="${project//%20/ }"
+  repo="${repo//%20/ }"
+
+  dest="$REPOS/devops/$org/$project/$repo"
+
+  if [[ -d "$dest" ]]; then
+    cd "$dest"
+    return
+  fi
+
+  local ssh_url="git@ssh.dev.azure.com:v3/$org/$project/$repo"
+
+  [[ ! -d "$REPOS/devops/$org/$project" ]] && mkdir -p "$REPOS/devops/$org/$project"
+  git clone "$ssh_url" "$dest" --recurse-submodules && cd "$dest"
+}
