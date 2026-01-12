@@ -538,6 +538,16 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
+-- SSDT table formatter (formats CREATE TABLE statements to Visual Studio style)
+local ssdt_formatter = vim.fn.expand("~/Repos/github.com/marhaasa/dotfiles/scripts/ssdt_table_formatter.py")
+vim.keymap.set('n', '<leader>sf', function()
+  if vim.fn.filereadable(ssdt_formatter) == 0 then
+    print("Error: ssdt_table_formatter.py not found")
+    return
+  end
+  vim.cmd("%!python3 " .. ssdt_formatter)
+end, { desc = "Format SQL table (SSDT style)" })
+
 -- QoL: auto-enter terminal mode when opening any :terminal buffer
 vim.api.nvim_create_autocmd("TermOpen", {
   pattern = "*",
