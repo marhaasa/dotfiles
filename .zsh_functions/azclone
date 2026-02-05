@@ -14,10 +14,15 @@ azclone() {
     org="${match[1]}"
     project="${match[2]}"
     repo="${match[3]}"
+  elif [[ "$url" =~ ^[^@]+@vs-ssh\.visualstudio\.com:v3/([^/]+)/([^/]+)/(.+)$ ]]; then
+    org="${match[1]}"
+    project="${match[2]}"
+    repo="${match[3]}"
   else
     echo "Invalid Azure DevOps URL format"
     echo "Expected: https://dev.azure.com/org/project/_git/repo"
     echo "      or: git@ssh.dev.azure.com:v3/org/project/repo"
+    echo "      or: org@vs-ssh.visualstudio.com:v3/org/project/repo"
     return 1
   fi
 
