@@ -1,5 +1,5 @@
 clone() {
-  local repo="$1" user name userd path
+  local repo="$1" user name userd target
   repo="${repo#https://github.com/}"
   repo="${repo#git@github.com:}"
   if [[ $repo == */* ]]; then
@@ -10,16 +10,16 @@ clone() {
   fi
   name="${repo##*/}"
   userd="$REPOS/github.com/$user"
-  path="$userd/$name"
+  target="$userd/$name"
 
   [[ ! -d "$REPOS/github.com" ]] && mkdir -p "$REPOS/github.com"
   [[ ! -d "$userd" ]] && mkdir -p "$userd"
   
-  if [[ -d "$path" ]]; then
-    cd "$path" && return
+  if [[ -d "$target" ]]; then
+    cd "$target" && return
   fi
   
   cd "$userd"
-  gh repo clone "$user/$name" -- --recurse-submodule
+  gh repo clone "$user/$name" -- --recurse-submodules
   cd "$name"
 }
