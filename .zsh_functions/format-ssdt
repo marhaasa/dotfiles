@@ -1,0 +1,29 @@
+# Format SQL files to SSDT style (accepts files, directories, or defaults to cwd)
+format-ssdt() {
+  local files=()
+
+  if (( $# == 0 )); then
+    files=(*.sql(N.))
+  else
+    for arg in "$@"; do
+      if [[ -d "$arg" ]]; then
+        files+=("$arg"/*.sql(N.))
+      elif [[ -f "$arg" ]]; then
+        files+=("$arg")
+      else
+        echo "Error: $arg is not a file or directory" >&2
+        return 1
+      fi
+    done
+  fi
+
+  if (( ${#files} == 0 )); then
+    echo "No .sql files found" >&2
+    return 1
+  fi
+
+  for f in "${files[@]}"; do
+    python3 "$DOTFILES/scripts/ssdt_table_formatter.py" "$f" -o "$f"
+    echo "Formatted: ${f:t}"
+  done
+}

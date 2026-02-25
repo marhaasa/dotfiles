@@ -35,9 +35,9 @@ class ColumnDefinition:
         return f"[{self.name}]"
 
     def formatted_type(self) -> str:
-        base = f"[{self.data_type.lower()}]"
+        base = f"[{self.data_type.upper()}]"
         if self.precision:
-            return f"{base}{self.precision}"
+            return f"{base}{self.precision.upper()}"
         return base
 
     def formatted_constraints(self) -> str:
