@@ -19,8 +19,8 @@ buildsql() {
 
       if curl -sL "https://www.nuget.org/api/v2/package/Microsoft.Build.Sql/$latest_version" -o "$temp_dir/pkg.nupkg"; then
         unzip -q "$temp_dir/pkg.nupkg" -d "$temp_dir/extracted"
+        rm -rf "${build_dir:?}"
         mkdir -p "$build_dir"
-        rm -rf "${build_dir:?}"/*
 
         # Copy from net8.0 (current), fall back to netstandard2.1 (older versions)
         if [[ -d "$temp_dir/extracted/tools/net8.0" ]]; then
