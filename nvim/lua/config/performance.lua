@@ -27,9 +27,7 @@ vim.opt.timeout = true
 vim.opt.timeoutlen = 300  -- Time to wait for mapped sequence (default 1000)
 vim.opt.ttimeoutlen = 10  -- Time to wait for key code sequence (default 100)
 
--- Faster redrawing
-vim.opt.lazyredraw = true
-vim.opt.regexpengine = 1  -- Use old regexp engine (faster for most cases)
+-- Note: lazyredraw and regexpengine=1 were removed as they cause sluggishness in Neovim
 
 -- Reduce updatetime for better responsiveness
 vim.opt.updatetime = 250  -- Default is 4000ms

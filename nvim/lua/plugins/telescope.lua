@@ -28,10 +28,10 @@ return {
       
       local pickers = {
         find_files = {
-          find_command = { "rg", "--files", "--glob", "!**/.git/*", "-L" },
+          find_command = { "fd", "--type", "f", "--strip-cwd-prefix", "--exclude", ".git" },
           hidden = false,
           no_ignore = false,
-          follow = true,
+          follow = false,
         },
       }
       

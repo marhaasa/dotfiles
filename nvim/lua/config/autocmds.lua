@@ -86,25 +86,21 @@ vim.api.nvim_create_autocmd("LspAttach", {
   end,
 })
 
--- Suppress sqls connection error messages
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = { "sql", "mysql", "plsql" },
-  callback = function()
-    -- Override vim.notify to suppress sqls-related messages
-    local original_notify = vim.notify
-    vim.notify = function(msg, level, opts)
-      if type(msg) == "string" and (
-        msg:match("sqls.*no database connection") or 
-        msg:match("LSP%[sqls%]") or
-        msg:match("database connection")
-      ) then
-        -- Silently ignore sqls connection messages
-        return
-      end
-      return original_notify(msg, level, opts)
+-- Suppress sqls connection error messages (patched once to avoid closure chain)
+if not vim.g._sqls_notify_patched then
+  vim.g._sqls_notify_patched = true
+  local original_notify = vim.notify
+  vim.notify = function(msg, level, opts)
+    if type(msg) == "string" and (
+      msg:match("sqls.*no database connection") or
+      msg:match("LSP%[sqls%]") or
+      msg:match("database connection")
+    ) then
+      return
     end
-  end,
-})
+    return original_notify(msg, level, opts)
+  end
+end
 
 function _G.extract_tasks_and_remind()
   -- Redirect the output of the :g command to a variable
