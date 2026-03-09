@@ -11,20 +11,29 @@ function icloud_backup() {
 
     echo "⏩  Source: $SRC"
     echo "⏩  Destination: $DEST"
+    echo "⏩  Downloading iCloud files locally..."
+    echo ""
+
+    # Force-download any iCloud placeholder files (.icloud stubs) before syncing
+    find "$SRC" -name "*.icloud" -exec brctl download {} \; 2>/dev/null
+    # Give iCloud a moment to finish downloads
+    sleep 20
+
     echo "⏩  Starting rsync backup..."
     echo ""
 
     # for testing: use --dry-run
     rsync \
+      --exclude="*.icloud" \
       --verbose \
       --recursive \
       --times \
       --no-perms \
-      --delete-after \
       --prune-empty-dirs \
       --exclude=".DS_Store" \
       --exclude=".Trash/" \
       --exclude="*.tmp" \
+      --exclude="._*" \
       --exclude=".DocumentRevisions-V100/" \
       "$SRC" "$DEST"
     
