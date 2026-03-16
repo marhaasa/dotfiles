@@ -1,0 +1,4 @@
+claude-ps() {
+  docker ps --filter "label=devcontainer.local_folder" \
+    --format 'table {{.ID}}\t{{.Status}}\t{{.Label "devcontainer.local_folder"}}'
+}

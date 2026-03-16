@@ -1,0 +1,5 @@
+claude-clean() {
+  docker ps -q --filter "label=devcontainer.local_folder" | xargs -r docker stop
+  docker ps -aq --filter "label=devcontainer.local_folder" | xargs -r docker rm
+  echo "All devcontainers removed"
+}

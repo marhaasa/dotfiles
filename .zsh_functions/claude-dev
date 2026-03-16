@@ -1,0 +1,43 @@
+claude-dev() {
+  local project="${1:-$(pwd)}"
+  local config="$DOTFILES/claude-containers/.devcontainer/devcontainer.json"
+  local project_name
+  project_name=$(basename "$project")
+
+  printf "Starting container for %s " "$project_name"
+
+  local tmpout result exit_code
+  tmpout=$(mktemp)
+
+  # Suppress zsh job notifications
+  setopt local_options no_notify no_monitor
+
+  devcontainer up --workspace-folder "$project" --config "$config" < /dev/null > "$tmpout" 2>&1 &
+  local pid=$!
+  while kill -0 $pid 2>/dev/null; do
+    printf "."
+    sleep 1
+  done
+  wait $pid
+  exit_code=$?
+
+  result=$(cat "$tmpout")
+  rm -f "$tmpout"
+  printf "\n"
+
+  local container_id
+  container_id=$(echo "$result" | grep -o '"containerId":"[^"]*"' | cut -d'"' -f4)
+  if [ -z "$container_id" ] || [ $exit_code -ne 0 ]; then
+    echo "Failed to start container"
+    echo "$result"
+    return 1
+  fi
+
+  local token
+  token=$(security find-generic-password -s "Claude Code-credentials" -w)
+  docker exec -it \
+    -e "CLAUDE_CODE_OAUTH_TOKEN=$token" \
+    -e "CLAUDE_PROJECT_NAME=$project_name" \
+    "$container_id" \
+    bash -c "clear && claude"
+}

@@ -154,9 +154,17 @@ autoload -Uz icloud_backup_photos
 
 autoload -Uz doc_commands
 
+autoload -Uz sql 
+
 autoload -Uz buildsql
 
 autoload -Uz sqlchanges
+
+autoload -Uz claude-dev
+
+autoload -Uz claude-ps
+
+autoload -Uz claude-clean
 
 # ~~~~~~~~~~~~~~~ Completion ~~~~~~~~~~~~~~~~~~~~~~~~
 

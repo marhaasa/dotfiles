@@ -1,0 +1,5 @@
+sql() {
+  export SQLSERVER="$(op read "op://Crayon/SQLSERVER/credential")"
+  nvim "/tmp/scratch-$(date +%Y%m%d-%H%M%S).sql"
+  unset SQLSERVER
+}
