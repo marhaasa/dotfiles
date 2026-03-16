@@ -34,7 +34,7 @@ claude-dev() {
   fi
 
   local token
-  token=$(security find-generic-password -s "Claude Code-credentials" -w)
+  token=$(security find-generic-password -s "Claude Code-credentials" -w | python3 -c "import sys,json;print(json.loads(sys.stdin.read())['claudeAiOauth']['accessToken'])")
   docker exec -it \
     -e "CLAUDE_CODE_OAUTH_TOKEN=$token" \
     -e "CLAUDE_PROJECT_NAME=$project_name" \
