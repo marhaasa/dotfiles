@@ -13,7 +13,7 @@ local CACHE_TTL = 300 -- 5 minutes
 local function get_connection_params()
   local server = os.getenv("SQLSERVER") or "localhost"
   local db = os.getenv("SQLDB") or "DW"
-  local auth = os.getenv("SQLAUTH") or ""
+  local auth = os.getenv("SQLAUTH") or "-G"
   return server .. ":" .. db .. ":" .. auth
 end
 
@@ -23,7 +23,7 @@ local function is_cache_valid(key)
     cache = { tables = {}, columns = {}, views = {}, last_updated = {}, connection_params = current_connection }
     return false
   end
-  
+
   local last_update = cache.last_updated[key] or 0
   return (os.time() - last_update) < CACHE_TTL
 end
@@ -34,21 +34,17 @@ local function execute_sqlcmd(query, callback)
     return
   end
 
-  local server = os.getenv("SQLSERVER") or "localhost"
+  local server = os.getenv("SQLSERVER")
   local db = os.getenv("SQLDB") or "DW"
-  local auth = os.getenv("SQLAUTH")
-  
-  local cmd = { "sqlcmd", "-S", server, "-d", db }
-  if auth and auth ~= "" then 
-    table.insert(cmd, auth) 
-  end
-  vim.list_extend(cmd, { "-Q", query, "-h", "-1", "-s", ",", "-W" })
+  local auth = os.getenv("SQLAUTH") or "-G"
+
+  local cmd = { "sqlcmd", "-S", server, "-d", db, auth, "-l", "5", "-Q", query, "-h", "-1", "-s", ",", "-W" }
 
   -- Debug info available via <leader>ss if needed
 
   local result = {}
   local stderr_output = {}
-  
+
   vim.fn.jobstart(cmd, {
     stdout_buffered = true,
     stderr_buffered = true,
@@ -87,7 +83,7 @@ end
 
 function M.get_tables(callback)
   local cache_key = "tables"
-  
+
   if is_cache_valid(cache_key) and #cache.tables > 0 then
     callback(cache.tables, nil)
     return
@@ -106,7 +102,7 @@ function M.get_tables(callback)
       callback({}, error)
       return
     end
-    
+
     local tables = {}
     for _, line in ipairs(result) do
       local table_name = line:gsub("^%s*(.-)%s*$", "%1") -- trim whitespace
@@ -114,7 +110,7 @@ function M.get_tables(callback)
         table.insert(tables, table_name)
       end
     end
-    
+
     cache.tables = tables
     cache.last_updated[cache_key] = os.time()
     callback(tables, nil)
@@ -123,7 +119,7 @@ end
 
 function M.get_columns(table_or_view_name, callback)
   local cache_key = "columns:" .. table_or_view_name
-  
+
   if is_cache_valid(cache_key) and cache.columns[table_or_view_name] then
     callback(cache.columns[table_or_view_name], nil)
     return
@@ -132,23 +128,30 @@ function M.get_columns(table_or_view_name, callback)
   -- Handle both "table/view" and "schema.table/view" formats
   local schema, tbl_or_view = table_or_view_name:match("^([^%.]+)%.([^%.]+)$")
   local query
-  
+
   if schema and tbl_or_view then
     -- Schema-qualified table/view name
-    query = string.format([[
+    query = string.format(
+      [[
       SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
       FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'
       ORDER BY ORDINAL_POSITION
-    ]], schema:gsub("'", "''"), tbl_or_view:gsub("'", "''"))
+    ]],
+      schema:gsub("'", "''"),
+      tbl_or_view:gsub("'", "''")
+    )
   else
     -- Just table/view name (search all schemas)
-    query = string.format([[
+    query = string.format(
+      [[
       SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
       FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_NAME = '%s'
       ORDER BY ORDINAL_POSITION
-    ]], table_or_view_name:gsub("'", "''"))
+    ]],
+      table_or_view_name:gsub("'", "''")
+    )
   end
 
   execute_sqlcmd(query, function(result, error)
@@ -156,7 +159,7 @@ function M.get_columns(table_or_view_name, callback)
       callback({}, error)
       return
     end
-    
+
     local columns = {}
     for _, line in ipairs(result) do
       local parts = {}
@@ -164,13 +167,13 @@ function M.get_columns(table_or_view_name, callback)
         local trimmed_part = part:gsub("^%s*(.-)%s*$", "%1") -- trim whitespace
         table.insert(parts, trimmed_part)
       end
-      
+
       if #parts >= 2 then
         local column_name = parts[1]
         local data_type = parts[2]
         local is_nullable = parts[3] or "YES"
         local default_value = parts[4] or ""
-        
+
         table.insert(columns, {
           name = column_name,
           type = data_type,
@@ -179,7 +182,7 @@ function M.get_columns(table_or_view_name, callback)
         })
       end
     end
-    
+
     cache.columns[table_or_view_name] = columns
     cache.last_updated[cache_key] = os.time()
     callback(columns, nil)
@@ -188,7 +191,7 @@ end
 
 function M.get_views(callback)
   local cache_key = "views"
-  
+
   if is_cache_valid(cache_key) and #cache.views > 0 then
     callback(cache.views, nil)
     return
@@ -206,7 +209,7 @@ function M.get_views(callback)
       callback({}, error)
       return
     end
-    
+
     local views = {}
     for _, line in ipairs(result) do
       local view_name = line:gsub("^%s*(.-)%s*$", "%1") -- trim whitespace
@@ -214,11 +217,15 @@ function M.get_views(callback)
         table.insert(views, view_name)
       end
     end
-    
+
     cache.views = views
     cache.last_updated[cache_key] = os.time()
     callback(views, nil)
   end)
+end
+
+function M.is_configured()
+  return os.getenv("SQLSERVER") ~= nil and vim.fn.executable("sqlcmd") == 1
 end
 
 function M.clear_cache()
@@ -234,7 +241,7 @@ end
 function M.get_cache_status()
   local current_time = os.time()
   local status = {}
-  
+
   status.connection = cache.connection_params or "not connected"
   status.tables_count = #cache.tables
   status.views_count = #cache.views
@@ -242,13 +249,14 @@ function M.get_cache_status()
   for _ in pairs(cache.columns) do
     status.columns_count = status.columns_count + 1
   end
-  
+
   status.last_table_update = cache.last_updated.tables
   if status.last_table_update then
     status.tables_age = current_time - status.last_table_update
   end
-  
+
   return status
 end
 
 return M
+

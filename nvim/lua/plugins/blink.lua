@@ -104,17 +104,16 @@ return {
       end,
     })
     
-    -- SQL files: pre-load schema for better completion
+    -- SQL files: pre-load schema for better completion (only if SQLSERVER is set)
     vim.api.nvim_create_autocmd("FileType", {
       pattern = { "sql" },
       callback = function()
-        -- Pre-load tables in the background
         vim.defer_fn(function()
           local ok, sql_schema = pcall(require, 'utils.sql_schema')
-          if ok then
+          if ok and sql_schema.is_configured() then
             sql_schema.get_tables(function() end) -- Warm up the cache
           end
-        end, 1000) -- Wait 1 second after opening file
+        end, 100)
       end,
     })
   end,

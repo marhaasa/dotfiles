@@ -10,5 +10,5 @@ return {
   -- Disable plugins that cause horizontal highlights
   { "lukas-reineke/indent-blankline.nvim", enabled = false },
   { "RRethy/vim-illuminate", enabled = false },
-  { "folke/flash.nvim", enabled = false },
+  -- flash.nvim re-enabled for fast navigation (s/S to jump anywhere)
 }

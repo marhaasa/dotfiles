@@ -6,18 +6,21 @@ return {
     statuscolumn = { enabled = true }, -- Required by LazyVim
     dashboard = { enabled = true },     -- Entry screen
     
-    -- Disable features that might cause horizontal highlights
-    scroll = { enabled = false },       -- This might cause highlighting
-    words = { enabled = false },        -- Word highlighting
-    animate = { enabled = false },      -- Animation effects
-    indent = { enabled = false },       -- Indent highlighting
-    scope = { enabled = false },        -- Scope highlighting
-    
+    -- Useful features
+    quickfile = { enabled = true },     -- Faster file opening
+    bigfile = { enabled = true },       -- Graceful large file handling
+    rename = { enabled = true },        -- LSP-aware file renaming
+
+    -- Disable visual noise
+    scroll = { enabled = false },
+    words = { enabled = false },
+    animate = { enabled = false },
+    indent = { enabled = false },
+    scope = { enabled = false },
+
     -- Other features (keep disabled)
     notifier = { enabled = false },
-    quickfile = { enabled = false },
     zen = { enabled = false },
-    bigfile = { enabled = false },
     bufdelete = { enabled = false },
     debug = { enabled = false },
     git = { enabled = false },
@@ -25,7 +28,6 @@ return {
     lazygit = { enabled = false },
     picker = { enabled = false },
     profiler = { enabled = false },
-    rename = { enabled = false },
     scratch = { enabled = false },
     terminal = { enabled = false },
     toggle = { enabled = false },

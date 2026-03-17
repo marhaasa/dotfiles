@@ -188,11 +188,9 @@ local function run_sql_query()
   -- Build sqlcmd command
   local server = os.getenv("SQLSERVER") or "localhost"
   local db = os.getenv("SQLDB") or "DW"
-  local auth = os.getenv("SQLAUTH")
+  local auth = os.getenv("SQLAUTH") or "-G"
 
-  local cmd = { "sqlcmd", "-S", server, "-d", db }
-  if auth and auth ~= "" then table.insert(cmd, auth) end
-  vim.list_extend(cmd, { "-Q", query, "-s", "\t", "-W" })
+  local cmd = { "sqlcmd", "-S", server, "-d", db, auth, "-Q", query, "-s", "\t", "-W" }
 
   -- Test if sqlcmd exists first
   if vim.fn.executable("sqlcmd") == 0 then
@@ -336,6 +334,17 @@ local function run_sql_query()
   end, { buffer = 0, desc = "Cancel SQL query" })
 end
 
+-- Open a scratch SQL buffer (reuses /tmp/scratch.sql)
+vim.api.nvim_create_user_command("Sql", function()
+  local path = "/tmp/scratch.sql"
+  -- Remove stale swap file to avoid the swap dialog blocking input
+  local swap = vim.fn.swapname(path)
+  if swap and swap ~= "" and vim.fn.filereadable(swap) == 1 then
+    os.remove(swap)
+  end
+  vim.cmd("edit " .. path)
+end, { desc = "Open scratch SQL buffer" })
+
 vim.keymap.set('n', '<leader>sq', run_sql_query, { desc = "Run entire buffer as SQL query with sqlcmd → VisiData" })
 vim.keymap.set('v', '<leader>sq', run_sql_query, { desc = "Run visual selection as SQL query with sqlcmd → VisiData" })
 
@@ -365,11 +374,9 @@ local function run_sql_script()
   -- Build sqlcmd command with -i (input file) instead of -Q
   local server = os.getenv("SQLSERVER") or "localhost"
   local db = os.getenv("SQLDB") or "DW"
-  local auth = os.getenv("SQLAUTH")
+  local auth = os.getenv("SQLAUTH") or "-G"
 
-  local cmd = { "sqlcmd", "-S", server, "-d", db }
-  if auth and auth ~= "" then table.insert(cmd, auth) end
-  vim.list_extend(cmd, { "-i", tmp })
+  local cmd = { "sqlcmd", "-S", server, "-d", db, auth, "-i", tmp }
 
   if vim.fn.executable("sqlcmd") == 0 then
     print("Error: sqlcmd not found in PATH")
