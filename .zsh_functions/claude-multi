@@ -81,5 +81,6 @@ claude-multi() {
     -e "CLAUDE_CODE_OAUTH_TOKEN=$token" \
     -e "CLAUDE_PROJECT_NAME=$project_name" \
     "claude-multi-${project_name}" \
-    bash -c "clear && claude"
+    bash -c "printf '\033]11;#282828\033\\\\' && clear && claude"
+  printf '\033]11;#1d2021\033\\'
 }
