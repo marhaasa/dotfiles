@@ -1,4 +1,11 @@
 claude-ps() {
   docker ps --filter "label=devcontainer.local_folder" \
-    --format 'table {{.ID}}\t{{.Status}}\t{{.Label "devcontainer.local_folder"}}'
+    --format '{{.ID}}\t{{.Status}}\t{{.Label "devcontainer.local_folder"}}' | while IFS=$'\t' read -r cid cstatus folder; do
+    printf "%s\t%s\t%s\n" "$cid" "$cstatus" "$(basename "$folder")"
+  done
+
+  docker ps --filter "name=claude-multi-" \
+    --format '{{.ID}}\t{{.Status}}\t{{.Names}}' | while IFS=$'\t' read -r cid cstatus cname; do
+    printf "%s\t%s\t%s (multi)\n" "$cid" "$cstatus" "${cname#claude-multi-}"
+  done
 }

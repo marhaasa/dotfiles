@@ -160,11 +160,17 @@ autoload -Uz buildsql
 
 autoload -Uz sqlchanges
 
+autoload -Uz _claude-bootstrap
+
 autoload -Uz claude-dev
 
 autoload -Uz claude-ps
 
 autoload -Uz claude-clean
+
+autoload -Uz claude-attach
+
+autoload -Uz claude-multi
 
 # ~~~~~~~~~~~~~~~ Completion ~~~~~~~~~~~~~~~~~~~~~~~~
 

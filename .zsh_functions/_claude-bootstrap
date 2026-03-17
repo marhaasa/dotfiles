@@ -1,0 +1,45 @@
+_claude-bootstrap() {
+  local container_id="$1"
+  shift
+  local extra_repos=("$@")
+  local settings_file="$DOTFILES/claude-containers/settings.json"
+  local plugins_file="$DOTFILES/claude-containers/plugins.txt"
+
+  # Bypass onboarding and workspace trust
+  docker exec "$container_id" python3 -c "
+import json, pathlib
+p = pathlib.Path('/home/node/.claude/.claude.json')
+d = json.loads(p.read_text()) if p.exists() else {}
+d['hasCompletedOnboarding'] = True
+d.setdefault('trustedDirectories', [])
+if '/workspace' not in d['trustedDirectories']:
+    d['trustedDirectories'].append('/workspace')
+p.write_text(json.dumps(d))
+" 2>/dev/null
+
+  # Copy container permissions
+  docker cp "$settings_file" "$container_id:/home/node/.claude/settings.json" > /dev/null 2>&1
+
+  # Add ouroboros marketplace if any ouroboros plugins are listed
+  if grep -q '@ouroboros' "$plugins_file" 2>/dev/null; then
+    docker exec "$container_id" claude plugin marketplace add Q00/ouroboros > /dev/null 2>&1
+  fi
+
+  # Install plugins from plugins.txt (skips already installed)
+  if [[ -f "$plugins_file" ]]; then
+    while IFS= read -r plugin; do
+      [[ -z "$plugin" || "$plugin" == \#* ]] && continue
+      docker exec "$container_id" claude plugin install "$plugin" 2>&1
+    done < "$plugins_file"
+  fi
+
+  # Write CLAUDE.md with repo layout if extra repos are provided
+  if [[ ${#extra_repos[@]} -gt 0 ]]; then
+    local claude_md="# Multi-repo workspace\n\nAdditional repos:\n"
+    for repo in "${extra_repos[@]}"; do
+      claude_md+="- /home/node/$(basename "$repo")\n"
+    done
+    claude_md+="\nAll repos are read-write. Use absolute paths when referencing files across repos."
+    docker exec "$container_id" bash -c "printf '${claude_md}' > /home/node/.claude/CLAUDE.md" 2>/dev/null
+  fi
+}

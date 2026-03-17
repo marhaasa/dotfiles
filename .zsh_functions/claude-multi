@@ -1,0 +1,85 @@
+claude-multi() {
+  if [[ $# -lt 2 ]]; then
+    echo "Usage: claude-multi <project1> <project2> [project3...]"
+    echo "First project is the primary workspace. Others are mounted read-write."
+    return 1
+  fi
+
+  local primary="$1"
+  shift
+  local extras=("$@")
+
+  local config="$DOTFILES/claude-containers/.devcontainer/devcontainer.json"
+  local project_name
+  project_name=$(basename "$primary")
+
+  # Build extra mount args
+  local extra_mounts=()
+  for dir in "${extras[@]}"; do
+    local name
+    name=$(basename "$dir")
+    extra_mounts+=(--mount "type=bind,source=$dir,target=/home/node/$name")
+  done
+
+  printf "Starting container for %s (+" "$project_name"
+  printf " %s" "${extras[@]##*/}"
+  printf ") "
+
+  local tmpout result exit_code
+  tmpout=$(mktemp)
+
+  setopt local_options no_notify no_monitor
+
+  devcontainer up --workspace-folder "$primary" --config "$config" < /dev/null > "$tmpout" 2>&1 &
+  local pid=$!
+  while kill -0 $pid 2>/dev/null; do
+    printf "."
+    sleep 1
+  done
+  wait $pid
+  exit_code=$?
+
+  result=$(cat "$tmpout")
+  rm -f "$tmpout"
+  printf "\n"
+
+  local container_id
+  container_id=$(echo "$result" | grep -o '"containerId":"[^"]*"' | cut -d'"' -f4)
+  if [ -z "$container_id" ] || [ $exit_code -ne 0 ]; then
+    echo "Failed to start container"
+    echo "$result"
+    return 1
+  fi
+
+  # Stop the devcontainer, get image, re-run with container-only config dir + extra mounts
+  local image
+  image=$(docker inspect "$container_id" --format '{{.Config.Image}}')
+  docker stop "$container_id" > /dev/null 2>&1
+  docker rm "$container_id" > /dev/null 2>&1
+
+  local token
+  token=$(security find-generic-password -s "Claude Code-credentials" -w | python3 -c "import sys,json;print(json.loads(sys.stdin.read())['claudeAiOauth']['accessToken'])")
+
+  # Use a named volume for .claude config (container-only, not bind-mounted to host)
+  docker run -d \
+    --name "claude-multi-${project_name}" \
+    --cap-add=NET_ADMIN --cap-add=NET_RAW \
+    --mount "type=bind,source=$primary,target=/workspace" \
+    --mount "type=volume,source=claude-multi-config-${project_name},target=/home/node/.claude" \
+    "${extra_mounts[@]}" \
+    -e "NODE_OPTIONS=--max-old-space-size=4096" \
+    -e "CLAUDE_CONFIG_DIR=/home/node/.claude" \
+    -e "EDITOR=nvim" \
+    -e "VISUAL=nvim" \
+    -e "DEVCONTAINER=true" \
+    -u node \
+    "$image" sleep infinity > /dev/null
+
+  _claude-bootstrap "claude-multi-${project_name}" "${extras[@]}"
+
+  docker exec -it \
+    -e "CLAUDE_CODE_OAUTH_TOKEN=$token" \
+    -e "CLAUDE_PROJECT_NAME=$project_name" \
+    "claude-multi-${project_name}" \
+    bash -c "clear && claude"
+}

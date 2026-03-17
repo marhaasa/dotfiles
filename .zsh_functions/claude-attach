@@ -1,0 +1,38 @@
+claude-attach() {
+  # Build list of running claude containers: "id  name"
+  local entries=()
+
+  while IFS=$'\t' read -r cid _ folder; do
+    [[ -n "$cid" ]] && entries+=("$cid  $(basename "$folder")")
+  done < <(docker ps --filter "label=devcontainer.local_folder" --format '{{.ID}}\t{{.Status}}\t{{.Label "devcontainer.local_folder"}}')
+
+  while IFS=$'\t' read -r cid _ cname; do
+    [[ -n "$cid" ]] && entries+=("$cid  ${cname#claude-multi-} (multi)")
+  done < <(docker ps --filter "name=claude-multi-" --format '{{.ID}}\t{{.Status}}\t{{.Names}}')
+
+  if [[ ${#entries[@]} -eq 0 ]]; then
+    echo "No running claude containers"
+    return 1
+  fi
+
+  # Single container — attach directly
+  if [[ ${#entries[@]} -eq 1 ]]; then
+    local container_id="${entries[1]%% *}"
+    local project_name="${entries[1]#*  }"
+  else
+    # Multiple containers — fzf picker
+    local selection
+    selection=$(printf '%s\n' "${entries[@]}" | fzf --header "Select container" --height 10 --reverse)
+    [[ -z "$selection" ]] && return 0
+    local container_id="${selection%% *}"
+    local project_name="${selection#*  }"
+  fi
+
+  local token
+  token=$(security find-generic-password -s "Claude Code-credentials" -w | python3 -c "import sys,json;print(json.loads(sys.stdin.read())['claudeAiOauth']['accessToken'])")
+  docker exec -it \
+    -e "CLAUDE_CODE_OAUTH_TOKEN=$token" \
+    -e "CLAUDE_PROJECT_NAME=$project_name" \
+    "$container_id" \
+    bash -c "clear && claude"
+}

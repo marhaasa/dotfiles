@@ -1,5 +1,9 @@
 claude-clean() {
-  docker ps -q --filter "label=devcontainer.local_folder" | xargs -r docker stop
-  docker ps -aq --filter "label=devcontainer.local_folder" | xargs -r docker rm
-  echo "All devcontainers removed"
+  # Stop and remove devcontainer-managed containers
+  docker ps -q --filter "label=devcontainer.local_folder" | xargs docker stop 2>/dev/null
+  docker ps -aq --filter "label=devcontainer.local_folder" | xargs docker rm 2>/dev/null
+  # Stop and remove claude-multi containers
+  docker ps -aq --filter "name=claude-multi-" | xargs docker stop 2>/dev/null
+  docker ps -aq --filter "name=claude-multi-" | xargs docker rm 2>/dev/null
+  echo "All claude containers removed"
 }
