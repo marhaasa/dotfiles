@@ -190,7 +190,7 @@ local function run_sql_query()
   local db = os.getenv("SQLDB") or "DW"
   local auth = os.getenv("SQLAUTH") or "-G"
 
-  local cmd = { "sqlcmd", "-S", server, "-d", db, auth, "-Q", query, "-s", "\t", "-W" }
+  local cmd = { "sqlcmd", "-S", server, "-d", db, auth, "-Q", query, "-s", "|", "-W" }
 
   -- Test if sqlcmd exists first
   if vim.fn.executable("sqlcmd") == 0 then
@@ -259,10 +259,38 @@ local function run_sql_query()
         end
 
         -- Filter out empty lines and unwanted rows
-        local clean_lines = {}
+        local raw_lines = {}
         for _, line in ipairs(result_lines) do
-          if line ~= "" and not line:match("^%-+") and not line:match("^%(%d+ rows affected%)$") then
-            table.insert(clean_lines, line)
+          line = line:gsub("\r", "") -- strip Windows CR from SQL Server output
+          if line ~= ""
+            and not line:match("^%-+")                        -- separator rows (----|----)
+            and not line:match("^%(%d+ rows affected%)")      -- row count footer
+            and not line:match("^Changed database context")   -- sqlcmd info messages
+            and not line:match("^Warning:")                   -- sqlcmd warnings
+          then
+            table.insert(raw_lines, line)
+          end
+        end
+
+        -- Merge continuation lines caused by embedded newlines in data values.
+        -- The header determines the expected number of separators per row; any
+        -- subsequent line with fewer separators is a continuation of the previous row.
+        local clean_lines = {}
+        if #raw_lines > 0 then
+          local function count_sep(s)
+            local _, n = s:gsub("|", "")
+            return n
+          end
+          local expected = count_sep(raw_lines[1])
+          table.insert(clean_lines, raw_lines[1])
+          for i = 2, #raw_lines do
+            local line = raw_lines[i]
+            if count_sep(line) < expected then
+              -- continuation: embedded newline in a data value — join with space
+              clean_lines[#clean_lines] = clean_lines[#clean_lines] .. " " .. line
+            else
+              table.insert(clean_lines, line)
+            end
           end
         end
 
@@ -292,20 +320,19 @@ local function run_sql_query()
             vim.api.nvim_win_close(win, true)
           end, { buffer = buf })
         else
-          -- Success: write CSV and open VisiData
-          local tmp = vim.fn.tempname() .. ".tsv"
+          -- Success: write TSV and open VisiData
+          local tmp = vim.fn.tempname() .. ".psv"
           local f = io.open(tmp, "w")
           for _, line in ipairs(clean_lines) do
             f:write(line .. "\n")
           end
           f:close()
 
-          -- Open VisiData in terminal
+          -- Open VisiData in terminal (replaces current window buffer)
           local term_buf = vim.api.nvim_create_buf(false, true)
           vim.api.nvim_win_set_buf(0, term_buf)
-          vim.api.nvim_buf_set_option(term_buf, 'swapfile', false)
 
-          vim.fn.termopen({ "vd", "-f", "tsv", tmp }, {
+          vim.fn.termopen({ "vd", "-f", "psv", tmp }, {
             on_exit = function()
               os.remove(tmp)
               vim.schedule(function()
