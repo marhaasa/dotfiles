@@ -27,9 +27,9 @@ azclone() {
   fi
 
   # URL decode %XX sequences
-  org="${org//%20/ }"
-  project="${project//%20/ }"
-  repo="${repo//%20/ }"
+  org="$(printf '%b' "${org//%/\\x}")"
+  project="$(printf '%b' "${project//%/\\x}")"
+  repo="$(printf '%b' "${repo//%/\\x}")"
 
   dest="$REPOS/devops/$org/$project/$repo"
 
