@@ -9,18 +9,18 @@ clone() {
     [[ -z "$user" ]] && user="$USER"
   fi
   name="${repo##*/}"
-  name="$(printf '%b' "${name//%/\\x}")"
-  user="$(printf '%b' "${user//%/\\x}")"
+  name="$(printf '%b' "${name//\%/\\x}")"
+  user="$(printf '%b' "${user//\%/\\x}")"
   userd="$REPOS/github.com/$user"
   target="$userd/$name"
 
   [[ ! -d "$REPOS/github.com" ]] && mkdir -p "$REPOS/github.com"
   [[ ! -d "$userd" ]] && mkdir -p "$userd"
-  
+
   if [[ -d "$target" ]]; then
     cd "$target" && return
   fi
-  
+
   cd "$userd"
   gh repo clone "$user/$name" -- --recurse-submodules
   cd "$name"
