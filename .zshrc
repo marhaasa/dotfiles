@@ -117,6 +117,7 @@ alias ld='lazydocker'
 # finds all files recursively and sorts by last modification, ignore hidden files
 alias lastmod='find . -type f -not -path "*/\.*" -exec ls -lrt {} +'
 alias sync-recordings='$DOTFILES/.zsh_functions/sync-recordings.sh'
+alias fixdns='sudo killall mDNSResponder'
 
 # git
 alias gp='git pull'
