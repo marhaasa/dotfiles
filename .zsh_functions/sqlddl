@@ -1,0 +1,130 @@
+# Fetch DDL for a SQL entity and open it in a Neovim scratchpad
+sqlddl() {
+  if (( $# == 0 )); then
+    echo "Usage: sqlddl <entity> [database]" >&2
+    echo "  entity:   object name, e.g. dbo.MyView, Fact.MyTable, schema.MyProc" >&2
+    echo "  database: defaults to \$SQLDB or 'DW'" >&2
+    echo "  server is read from 1Password (op://Crayon/SQLSERVER/credential)" >&2
+    return 1
+  fi
+
+  local entity="$1"
+  local database="${2:-${SQLDB:-DW}}"
+
+  # Reject quotes/semicolons in entity name to avoid breaking the SQL we generate
+  if [[ "$entity" == *[\'\;]* ]]; then
+    echo "Error: invalid characters in entity name" >&2
+    return 1
+  fi
+
+  export SQLSERVER="$(op read "op://Crayon/SQLSERVER/credential")"
+  if [[ -z "$SQLSERVER" ]]; then
+    echo "Error: failed to read SQLSERVER from 1Password" >&2
+    unset SQLSERVER
+    return 1
+  fi
+
+  local safe_name="${entity//[^A-Za-z0-9_]/_}"
+  local tmpfile="/tmp/ddl-${safe_name}-$(date +%Y%m%d-%H%M%S).sql"
+  local query_file
+  query_file=$(mktemp -t sqlddl-query).sql
+
+  cat > "$query_file" <<SQL
+SET NOCOUNT ON;
+DECLARE @entity NVARCHAR(256) = N'${entity}';
+DECLARE @objid INT = OBJECT_ID(@entity);
+
+IF @objid IS NULL
+BEGIN
+    PRINT '-- Object not found: ' + @entity;
+    RETURN;
+END
+
+DECLARE @def NVARCHAR(MAX) = OBJECT_DEFINITION(@objid);
+IF @def IS NOT NULL
+BEGIN
+    SELECT @def;
+    RETURN;
+END
+
+IF OBJECTPROPERTY(@objid, 'IsUserTable') = 1
+BEGIN
+    DECLARE @qname NVARCHAR(512) =
+        QUOTENAME(OBJECT_SCHEMA_NAME(@objid)) + '.' + QUOTENAME(OBJECT_NAME(@objid));
+    DECLARE @sql NVARCHAR(MAX) = 'CREATE TABLE ' + @qname + ' (' + CHAR(13)+CHAR(10);
+
+    SELECT @sql = @sql + '    ' + QUOTENAME(c.name) + ' ' +
+        CASE
+            WHEN t.name IN ('varchar','char','varbinary','binary')
+                THEN t.name + '(' + CASE WHEN c.max_length = -1 THEN 'MAX'
+                                         ELSE CAST(c.max_length AS VARCHAR(10)) END + ')'
+            WHEN t.name IN ('nvarchar','nchar')
+                THEN t.name + '(' + CASE WHEN c.max_length = -1 THEN 'MAX'
+                                         ELSE CAST(c.max_length/2 AS VARCHAR(10)) END + ')'
+            WHEN t.name IN ('decimal','numeric')
+                THEN t.name + '(' + CAST(c.precision AS VARCHAR(10)) + ','
+                                  + CAST(c.scale AS VARCHAR(10)) + ')'
+            WHEN t.name IN ('datetime2','time','datetimeoffset')
+                THEN t.name + '(' + CAST(c.scale AS VARCHAR(10)) + ')'
+            ELSE t.name
+        END +
+        CASE WHEN c.is_identity = 1
+             THEN ' IDENTITY(' + CAST(ISNULL(IDENT_SEED(@qname), 1) AS VARCHAR(10)) + ','
+                              + CAST(ISNULL(IDENT_INCR(@qname), 1) AS VARCHAR(10)) + ')'
+             ELSE '' END +
+        CASE WHEN c.is_nullable = 1 THEN ' NULL' ELSE ' NOT NULL' END +
+        ',' + CHAR(13)+CHAR(10)
+    FROM sys.columns c
+    JOIN sys.types t ON c.user_type_id = t.user_type_id AND t.is_user_defined = 0
+    WHERE c.object_id = @objid
+    ORDER BY c.column_id;
+
+    -- Strip trailing ',\r\n' and close the statement
+    SET @sql = LEFT(@sql, LEN(@sql) - 3) + CHAR(13)+CHAR(10) + ');';
+
+    -- Append PRIMARY KEY as a separate ALTER if present
+    DECLARE @pk NVARCHAR(MAX) = NULL;
+    SELECT @pk = COALESCE(@pk + ', ', '') + QUOTENAME(c.name)
+    FROM sys.indexes i
+    JOIN sys.index_columns ic
+        ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+    JOIN sys.columns c
+        ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+    WHERE i.object_id = @objid AND i.is_primary_key = 1
+    ORDER BY ic.key_ordinal;
+
+    IF @pk IS NOT NULL
+        SET @sql = @sql + CHAR(13)+CHAR(10)
+                        + 'ALTER TABLE ' + @qname + ' ADD PRIMARY KEY (' + @pk + ');';
+
+    SELECT @sql;
+    RETURN;
+END
+
+PRINT '-- Unsupported object type for: ' + @entity;
+SQL
+
+  echo "Fetching DDL for ${entity} from ${SQLSERVER}/${database}..."
+
+  if ! sqlcmd -S "$SQLSERVER" -d "$database" \
+       --authentication-method ActiveDirectoryDefault \
+       -i "$query_file" \
+       -h -1 -W -y 0 \
+       -o "$tmpfile"; then
+    echo "Error: sqlcmd failed" >&2
+    rm -f "$tmpfile" "$query_file"
+    unset SQLSERVER
+    return 1
+  fi
+
+  rm -f "$query_file"
+  unset SQLSERVER
+
+  if [[ ! -s "$tmpfile" ]]; then
+    echo "Error: No output returned for ${entity}." >&2
+    rm -f "$tmpfile"
+    return 1
+  fi
+
+  nvim -c "set filetype=sql syntax=sql" "$tmpfile"
+}
