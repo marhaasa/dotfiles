@@ -75,6 +75,19 @@ vim.api.nvim_create_autocmd("filetype", {
 --  command = ":%!sqlformat",
 --})
 
+-- Strip stray carriage returns (^M) from SQL files on read.
+-- SQL files often arrive with mixed CRLF/LF line endings (e.g., from SSMS),
+-- which Neovim renders as ^M in unix-format buffers.
+vim.api.nvim_create_autocmd("BufReadPost", {
+  pattern = "*.sql",
+  callback = function()
+    local view = vim.fn.winsaveview()
+    vim.cmd([[silent! keeppatterns %s/\r//ge]])
+    vim.fn.winrestview(view)
+    vim.bo.modified = false
+  end,
+})
+
 -- Prevent sqls LSP from attaching to SQL files
 vim.api.nvim_create_autocmd("LspAttach", {
   callback = function(args)
