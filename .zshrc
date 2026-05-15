@@ -157,6 +157,8 @@ autoload -Uz doc_commands
 
 autoload -Uz sql 
 
+autoload -Uz sqlddl
+
 autoload -Uz buildsql
 
 autoload -Uz sqlchanges
