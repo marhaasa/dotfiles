@@ -54,6 +54,30 @@ buildsql() {
     return 1
   fi
 
+  # .NET Framework 4.8 reference assemblies (needed for legacy .sqlproj on
+  # non-Windows: NuGet restore drops the conditional PackageReference, so we
+  # provide TargetFrameworkRootPath ourselves)
+  local net48_root="$build_dir/net48-ref/build"
+  if [[ ! -d "$net48_root/.NETFramework/v4.8" ]]; then
+    local cached=( $HOME/.nuget/packages/microsoft.netframework.referenceassemblies.net48/*/build(N/) )
+    if (( ${#cached} > 0 )); then
+      net48_root="${cached[1]}"
+    else
+      echo "Downloading .NET Framework 4.8 reference assemblies..."
+      local temp_dir=$(mktemp -d)
+      if curl -sL "https://www.nuget.org/api/v2/package/Microsoft.NETFramework.ReferenceAssemblies.net48/1.0.3" -o "$temp_dir/net48.nupkg" \
+         && unzip -q "$temp_dir/net48.nupkg" -d "$temp_dir/net48"; then
+        mkdir -p "$build_dir/net48-ref"
+        cp -R "$temp_dir/net48/build" "$build_dir/net48-ref/"
+      else
+        echo "Error: failed to download .NET Framework 4.8 reference assemblies" >&2
+        rm -rf "$temp_dir"
+        return 1
+      fi
+      rm -rf "$temp_dir"
+    fi
+  fi
+
   # Find .sqlproj files
   local sqlproj_files=( **/*.sqlproj(N.) )
 
@@ -89,5 +113,6 @@ buildsql() {
   dotnet build "$project" \
     /p:NetCoreBuild=true \
     /p:SystemDacpacsLocation="$build_dir" \
-    /p:NETCoreTargetsPath="$build_dir"
+    /p:NETCoreTargetsPath="$build_dir" \
+    /p:TargetFrameworkRootPath="$net48_root"
 }
