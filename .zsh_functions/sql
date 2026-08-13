@@ -1,5 +1,6 @@
 sql() {
-  export SQLSERVER="$(op read "op://Crayon/SQLSERVER/credential")"
+  local item="${1}"
+  export SQLSERVER="$(op read "op://Crayon/$item/credential")"
   nvim "/tmp/scratch-$(date +%Y%m%d-%H%M%S).sql"
   unset SQLSERVER
 }
