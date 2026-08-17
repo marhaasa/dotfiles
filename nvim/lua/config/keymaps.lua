@@ -166,6 +166,29 @@ end, { desc = 'Run SageTag on current file' })
 -- 🗃️ DATABASE OPERATIONS
 -- ============================================================================
 
+-- Resolve the SQL server, prompting for a 1Password item when SQLSERVER is unset
+local function ensure_sqlserver()
+  local server = os.getenv("SQLSERVER")
+  if server and server ~= "" then
+    return server
+  end
+
+  local item = vim.fn.input("SQLSERVER not set. 1Password item (empty to cancel): ")
+  vim.api.nvim_echo({ { "" } }, false, {})
+  if item == "" then
+    return nil
+  end
+
+  local result = vim.fn.system({ "op", "read", "op://Crayon/" .. item .. "/credential" })
+  if vim.v.shell_error ~= 0 or vim.trim(result) == "" then
+    vim.api.nvim_echo({ { "Failed to read '" .. item .. "' from 1Password", "ErrorMsg" } }, false, {})
+    return nil
+  end
+
+  -- Persist for the rest of this nvim session so we only prompt once
+  vim.env.SQLSERVER = vim.trim(result)
+  return vim.env.SQLSERVER
+end
 
 local function run_sql_query()
   local lines
@@ -186,7 +209,11 @@ local function run_sql_query()
   local query = table.concat(lines, ' '):gsub('"', '\\"'):gsub('%s+', ' ')
 
   -- Build sqlcmd command
-  local server = os.getenv("SQLSERVER") or "localhost"
+  local server = ensure_sqlserver()
+  if not server then
+    vim.api.nvim_echo({ { "SQL query cancelled: no server", "WarningMsg" } }, false, {})
+    return
+  end
   local db = os.getenv("SQLDB") or "DW"
   local auth = os.getenv("SQLAUTH") or "-G"
 
@@ -399,7 +426,12 @@ local function run_sql_script()
   f:close()
 
   -- Build sqlcmd command with -i (input file) instead of -Q
-  local server = os.getenv("SQLSERVER") or "localhost"
+  local server = ensure_sqlserver()
+  if not server then
+    os.remove(tmp)
+    vim.api.nvim_echo({ { "SQL script cancelled: no server", "WarningMsg" } }, false, {})
+    return
+  end
   local db = os.getenv("SQLDB") or "DW"
   local auth = os.getenv("SQLAUTH") or "-G"
 
