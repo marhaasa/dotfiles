@@ -1,6 +1,23 @@
 sql() {
   local item="${1}"
-  export SQLSERVER="$(op read "op://Crayon/$item/credential")"
-  nvim "/tmp/scratch-$(date +%Y%m%d-%H%M%S).sql"
-  unset SQLSERVER
+  if [[ -z "$item" ]]; then
+    echo "usage: sql <1password-item | duckdb-file>" >&2
+    return 1
+  fi
+  local label
+  if [[ -f "$item" ]]; then
+    # Local DuckDB file: skip 1Password and let nvim query it via the duckdb CLI
+    export DUCKDB="${item:A}"
+    label="${${item:t:r}// /_}"
+  else
+    export SQLSERVER="$(op read "op://Crayon/$item/credential")"
+    # Display label for the nvim statusline (the credential itself stays private)
+    export SQLITEM="$item"
+    label="${item// /_}"
+  fi
+  # Query history: scratch files persist in ~/.sql-scratch (picker: <leader>sh)
+  local dir="$HOME/.sql-scratch"
+  mkdir -p "$dir"
+  nvim "$dir/${label}-$(date +%Y%m%d-%H%M%S).sql"
+  unset SQLSERVER DUCKDB SQLITEM
 }

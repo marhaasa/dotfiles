@@ -1,0 +1,77 @@
+# VisiData configuration — symlinked to ~/.visidatarc by setup.sh
+
+import json
+
+from visidata import Sheet, TextSheet, vd, options
+
+# 'v' multiline view: wrap cells up to this many lines per row (default 3)
+options.disp_wrap_max_lines = 10
+# wrap long lines to the window width on text sheets (e.g. cell views)
+options.wrap = True
+
+# ---------------------------------------------------------------------------
+# Gruvbox Dark Hard (matches ghostty/nvim themes), xterm-256 approximations:
+#   fg1 223 | bg0_h 234 | bg1 237 | bg2 239 | gray 245
+#   red 167 | green 142 | yellow 214 | blue 109 | aqua 108 | orange 208
+# ---------------------------------------------------------------------------
+options.color_default = '223 on 234'
+options.color_default_hdr = 'bold underline 208 on 234'  # column headers: orange accent
+options.color_current_hdr = 'bold 234 on 214'      # header of cursor column
+options.color_current_col = 'bold on 235'
+options.color_current_row = 'on 237'
+options.color_current_cell = 'bold 234 on 214'     # cursor cell: yellow block
+options.color_key_col = '108'                      # key columns: aqua
+options.color_selected_row = '208'                 # selected rows: orange
+options.color_column_sep = '245 on 234'
+# with a single header row, bottom_hdr merges over default_hdr — keep in sync
+options.color_bottom_hdr = 'bold underline 208 on 234'
+options.color_note_row = '208'
+options.color_note_type = '109'
+options.color_hidden_col = '245'
+options.color_aggregator = 'bold 223 on 239'
+
+options.color_top_status = 'underline 223 on 234'
+options.color_active_status = '234 on 109'
+options.color_inactive_status = '245 on 236'
+options.color_status = 'bold 223 on 237'
+options.color_highlight_status = '234 on 142'
+options.color_keystrokes = 'bold 214 on 237'
+options.color_longname_status = '223'
+
+options.color_error = '167'
+options.color_warning = '208'
+options.color_working = '142'
+options.color_edit_cell = '234 on 109'
+options.color_highlight_search = '234 on 208'
+options.color_add_pending = '142'
+options.color_delete_pending = '167'
+options.color_change_pending = '214'
+
+options.color_menu = '223 on 237'
+options.color_menu_active = '234 on 214'
+options.color_menu_spec = '234 on 142'
+options.color_menu_help = '223 italic on 237'
+options.color_cmdpalette = '223 on 236'
+options.color_sidebar = '223 on 236'
+options.color_sidebar_title = '234 on 214'
+options.color_heading = 'bold 234 on 214'
+options.color_hint = '234 on 214'
+
+
+@Sheet.api
+def view_cell_full(sheet):
+    '''Push a TextSheet with the full contents of the current cell,
+    pretty-printed when the value is a JSON object or array.'''
+    text = sheet.cursorFullDisplay
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, (dict, list)):
+            text = json.dumps(parsed, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+    name = '_'.join([sheet.name, sheet.cursorCol.name or 'cell'])
+    vd.push(TextSheet(name, source=text.splitlines() or ['']))
+
+
+Sheet.addCommand('V', 'view-cell-full', 'sheet.view_cell_full()',
+                 'view full contents of current cell (pretty-prints JSON)')

@@ -51,6 +51,17 @@ return {
     }
 
     opts.completion = {
+      trigger = {
+        -- blink blocks space as a trigger character by default; unblock it
+        -- in SQL so the schema source can pop columns right after WHERE/AND/
+        -- ON/etc. The source stays silent on spaces in unrecognized contexts.
+        show_on_blocked_trigger_characters = function()
+          if vim.bo.filetype == "sql" then
+            return { "\n", "\t" }
+          end
+          return { " ", "\n", "\t" }
+        end,
+      },
       list = {
         max_items = 50,
       },
@@ -104,12 +115,12 @@ return {
       end,
     })
     
-    -- SQL files: pre-load schema for better completion (only if SQLSERVER is set)
+    -- SQL files: pre-load schema for better completion (only if SQLSERVER or DUCKDB is set)
     vim.api.nvim_create_autocmd("FileType", {
       pattern = { "sql" },
       callback = function()
         vim.defer_fn(function()
-          local ok, sql_schema = pcall(require, 'utils.sql_schema')
+          local ok, sql_schema = pcall(require, 'sql.schema')
           if ok and sql_schema.is_configured() then
             sql_schema.get_tables(function() end) -- Warm up the cache
           end

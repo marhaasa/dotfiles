@@ -7,47 +7,175 @@ function M.new()
   return setmetatable({}, { __index = M })
 end
 
-function M:get_select_context(line, col)
-  -- Look for SELECT ... FROM pattern to extract table names
-  local line_lower = line:lower()
-  
-  -- Check if we're between SELECT and FROM
-  local select_pos = line_lower:find("select")
-  local from_pos = line_lower:find("from")
-  
-  if not select_pos or not from_pos or col <= select_pos or col >= from_pos then
-    return nil
-  end
-  
-  -- Extract the FROM clause to get table names
-  local from_part = line:sub(from_pos + 4):match("^%s*([^%s,;]+)")
-  if from_part then
-    -- Handle schema.table format
-    local schema_table = from_part:match("([%w_]+%.[%w_]+)")
-    if schema_table then
-      return { table_name = schema_table }
+-- Words that can never be a table name or alias
+local KEYWORDS = {}
+for _, kw in ipairs({
+  "where", "join", "inner", "left", "right", "full", "cross", "outer", "on",
+  "group", "order", "having", "union", "except", "intersect", "select", "set",
+  "as", "with", "and", "or", "not", "when", "then", "case", "end", "limit",
+  "offset", "option", "pivot", "unpivot", "apply", "values", "go", "from",
+  "into", "update", "top", "distinct", "asc", "desc", "by",
+}) do
+  KEYWORDS[kw] = true
+end
+
+-- Cursor is where a column name belongs (WHERE clause, join condition,
+-- select list, ...). `text` is everything before the cursor, lowercased.
+local COLUMN_TAILS = {
+  "%f[%w]where%s+[%w_%[%]]*$",
+  "%f[%w]and%s+[%w_%[%]]*$",
+  "%f[%w]or%s+[%w_%[%]]*$",
+  "%f[%w]on%s+[%w_%[%]]*$",
+  "%f[%w]having%s+[%w_%[%]]*$",
+  "%f[%w]group%s+by%s+[%w_%[%]]*$",
+  "%f[%w]order%s+by%s+[%w_%[%]]*$",
+  "%f[%w]select%s+[%w_%[%]]*$",
+  "%f[%w]select%s+distinct%s+[%w_%[%]]*$",
+  "%f[%w]set%s+[%w_%[%]]*$",
+}
+
+-- Cursor is where a table name belongs
+local TABLE_TAILS = {
+  "%f[%w]from%s+[%w_%.%[%]]*$",
+  "%f[%w]join%s+[%w_%.%[%]]*$",
+  "%f[%w]into%s+[%w_%.%[%]]*$",
+  "%f[%w]update%s+[%w_%.%[%]]*$",
+}
+
+local function matches_any(text, patterns)
+  for _, pat in ipairs(patterns) do
+    if text:match(pat) then
+      return true
     end
-    
-    -- Handle just table name
-    local table_name = from_part:match("([%w_]+)")
-    if table_name then
-      return { table_name = table_name }
+  end
+  return false
+end
+
+-- Scan the whole buffer for table references (FROM/JOIN/UPDATE/INTO) and
+-- their aliases. Returns a list of table names and an alias -> table map.
+function M:get_buffer_tables()
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  local text = " " .. table.concat(lines, "\n") .. " "
+  local ltext = text:lower()
+
+  local tables, seen, aliases = {}, {}, {}
+  for _, kw in ipairs({ "from", "join", "into", "update" }) do
+    for pos in ltext:gmatch("%f[%w]" .. kw .. "%f[%W]()") do
+      local ws, token = text:match("^(%s*)([%[%]%w_%.#]+)", pos)
+      if token then
+        local name = token:gsub("[%[%]]", "")
+        if name ~= "" and not KEYWORDS[name:lower()] then
+          if not seen[name:lower()] then
+            seen[name:lower()] = true
+            table.insert(tables, name)
+          end
+          -- optional alias: "AS x" or bare "x" (but never a keyword)
+          local after = pos + #ws + #token
+          local alias = text:match("^%s+[aA][sS]%s+([%w_]+)", after)
+            or text:match("^%s+([%w_]+)", after)
+          if alias and not KEYWORDS[alias:lower()] then
+            aliases[alias:lower()] = name
+          end
+        end
+      end
     end
   end
-  
-  return nil
+  return tables, aliases
+end
+
+local function make_column_items(columns, source_table)
+  local items = {}
+  for _, column in ipairs(columns or {}) do
+    table.insert(items, {
+      label = column.name,
+      kind = 5, -- Field
+      detail = column.type .. (not column.nullable and " NOT NULL" or ""),
+      labelDetails = source_table and { description = source_table } or nil,
+      insertText = column.name,
+    })
+  end
+  return items
+end
+
+-- Columns of a single table
+local function complete_columns(table_name, callback)
+  sql_schema.get_columns(table_name, function(columns, error)
+    if error or not columns then
+      callback({ items = {} })
+      return
+    end
+    callback({ items = make_column_items(columns) })
+  end)
+end
+
+-- Columns of every table referenced in the statement, labeled by table
+local function complete_columns_for_tables(table_names, callback)
+  if #table_names == 0 then
+    callback({ items = {} })
+    return
+  end
+  local items = {}
+  local remaining = #table_names
+  for _, tbl in ipairs(table_names) do
+    sql_schema.get_columns(tbl, function(columns, _)
+      vim.list_extend(items, make_column_items(columns, #table_names > 1 and tbl or nil))
+      remaining = remaining - 1
+      if remaining == 0 then
+        callback({ items = items })
+      end
+    end)
+  end
+end
+
+-- All tables and views, optionally restricted to one schema
+local function complete_tables_and_views(schema_only, callback)
+  local items = {}
+  local remaining = 2
+
+  local function add(names, kind, what)
+    for _, full_name in ipairs(names or {}) do
+      if schema_only then
+        local prefix = schema_only:lower() .. "."
+        if full_name:lower():sub(1, #prefix) == prefix then
+          local short = full_name:sub(#schema_only + 2)
+          table.insert(items, {
+            label = short,
+            kind = kind,
+            detail = what .. " in " .. schema_only,
+            insertText = short,
+          })
+        end
+      else
+        table.insert(items, {
+          label = full_name,
+          kind = kind,
+          detail = what,
+          insertText = full_name,
+        })
+      end
+    end
+    remaining = remaining - 1
+    if remaining == 0 then
+      callback({ items = items })
+    end
+  end
+
+  sql_schema.get_tables(function(tables, error)
+    add(not error and tables or {}, 21, "table") -- Class
+  end)
+  sql_schema.get_views(function(views, error)
+    add(not error and views or {}, 8, "view") -- Interface
+  end)
 end
 
 function M:get_completions(context, callback)
-  -- Only activate for SQL files
   if vim.bo.filetype ~= "sql" then
     callback({ items = {} })
     return
   end
 
-  -- Lazy load sql_schema
   if not sql_schema then
-    local ok, module = pcall(require, 'utils.sql_schema')
+    local ok, module = pcall(require, 'sql.schema')
     if not ok then
       callback({ items = {} })
       return
@@ -55,179 +183,50 @@ function M:get_completions(context, callback)
     sql_schema = module
   end
 
-  -- Check what kind of completion this is
   local line = vim.api.nvim_get_current_line()
+  local row = vim.api.nvim_win_get_cursor(0)[1]
   local col = vim.api.nvim_win_get_cursor(0)[2]
   local before_cursor = line:sub(1, col)
-  
-  -- Check for column completion: schema.table.column or table.column
-  local schema_table_column = before_cursor:match("([%w_]+%.[%w_]+)%.%w*$") -- schema.table.column
-  local table_column = before_cursor:match("([%w_]+)%.%w*$") -- table.column (but not schema.table)
-  
-  -- Check for schema-to-table completion: schema.
+
+  -- Everything from buffer start to the cursor, for clause detection that
+  -- works across line breaks
+  local prev_lines = vim.api.nvim_buf_get_lines(0, 0, row - 1, false)
+  table.insert(prev_lines, before_cursor)
+  local full_before = table.concat(prev_lines, "\n"):lower()
+
+  local buffer_tables, aliases = M:get_buffer_tables()
+
+  -- Dot completions (most specific first)
+  local schema_table_column = before_cursor:match("([%w_]+%.[%w_]+)%.[%w_]*$")
+  local dot_word = before_cursor:match("([%w_]+)%.[%w_]*$")
   local schema_only = before_cursor:match("([%w_]+)%.$")
-  
-  -- Check for SELECT column completion: between SELECT and FROM
-  local select_context = M:get_select_context(line, col)
-  
-  if select_context then
-    -- Column completion for SELECT clause
-    sql_schema.get_columns(select_context.table_name, function(columns, error)
-      if error or not columns then
-        callback({ items = {} })
-        return
-      end
-      
-      local items = {}
-      for _, column in ipairs(columns) do
-        table.insert(items, {
-          label = column.name,
-          kind = 5, -- Field
-          detail = column.type .. (not column.nullable and " NOT NULL" or ""),
-          insertText = column.name,
-        })
-      end
-      
-      callback({ items = items })
-    end)
-  elseif schema_table_column then
-    -- Column completion for schema.table.column
-    sql_schema.get_columns(schema_table_column, function(columns, error)
-      if error or not columns then
-        callback({ items = {} })
-        return
-      end
-      
-      local items = {}
-      for _, column in ipairs(columns) do
-        table.insert(items, {
-          label = column.name,
-          kind = 5, -- Field
-          detail = column.type .. (not column.nullable and " NOT NULL" or ""),
-          insertText = column.name,
-        })
-      end
-      
-      callback({ items = items })
-    end)
+
+  if schema_table_column then
+    -- schema.table.<column>
+    complete_columns(schema_table_column, callback)
+  elseif dot_word and aliases[dot_word:lower()] then
+    -- alias.<column>  (alias resolved from FROM/JOIN in the buffer)
+    complete_columns(aliases[dot_word:lower()], callback)
   elseif schema_only then
-    -- Schema-to-table/view completion: show tables and views in this schema
-    local items = {}
-    local completed_count = 0
-    local expected_count = 2
-    
-    local function check_completion()
-      completed_count = completed_count + 1
-      if completed_count >= expected_count then
-        callback({ items = items })
-      end
-    end
-    
-    -- Get tables
-    sql_schema.get_tables(function(tables, error)
-      if not error and tables then
-        local schema_prefix = schema_only:lower() .. "."
-        
-        for _, table_name in ipairs(tables) do
-          if table_name:lower():sub(1, #schema_prefix) == schema_prefix then
-            -- Extract just the table name without schema
-            local just_table_name = table_name:sub(#schema_only + 2) -- +2 for the dot
-            
-            table.insert(items, {
-              label = just_table_name,
-              kind = 21, -- Class
-              detail = "table in " .. schema_only,
-              insertText = just_table_name,
-            })
-          end
-        end
-      end
-      check_completion()
-    end)
-    
-    -- Get views
-    sql_schema.get_views(function(views, error)
-      if not error and views then
-        local schema_prefix = schema_only:lower() .. "."
-        
-        for _, view_name in ipairs(views) do
-          if view_name:lower():sub(1, #schema_prefix) == schema_prefix then
-            -- Extract just the view name without schema
-            local just_view_name = view_name:sub(#schema_only + 2) -- +2 for the dot
-            
-            table.insert(items, {
-              label = just_view_name,
-              kind = 8, -- Interface (different from tables)
-              detail = "view in " .. schema_only,
-              insertText = just_view_name,
-            })
-          end
-        end
-      end
-      check_completion()
-    end)
-  elseif table_column and not table_column:match("%.") then
-    -- Column completion for just table.column (no schema)
-    sql_schema.get_columns(table_column, function(columns, error)
-      if error or not columns then
-        callback({ items = {} })
-        return
-      end
-      
-      local items = {}
-      for _, column in ipairs(columns) do
-        table.insert(items, {
-          label = column.name,
-          kind = 5, -- Field
-          detail = column.type .. (not column.nullable and " NOT NULL" or ""),
-          insertText = column.name,
-        })
-      end
-      
-      callback({ items = items })
-    end)
+    -- schema.<table or view>
+    complete_tables_and_views(schema_only, callback)
+  elseif dot_word then
+    -- table.<column> (unqualified table name, searched across schemas)
+    complete_columns(dot_word, callback)
+  elseif matches_any(full_before, TABLE_TAILS) then
+    -- after FROM/JOIN/INTO/UPDATE: table names
+    complete_tables_and_views(nil, callback)
+  elseif matches_any(full_before, COLUMN_TAILS) then
+    -- after WHERE/AND/OR/ON/HAVING/GROUP BY/ORDER BY/SELECT/SET: columns
+    -- from every table referenced in the buffer
+    complete_columns_for_tables(buffer_tables, callback)
+  elseif context and context.trigger and context.trigger.character == " " then
+    -- Space is an unblocked trigger character in sql buffers (see blink.lua)
+    -- so recognized clauses above pop automatically; a bare space in any
+    -- other context should not dump the full table list.
+    callback({ items = {} })
   else
-    -- Table and view completion - show all schema.table and schema.view combinations
-    local items = {}
-    local completed_count = 0
-    local expected_count = 2
-    
-    local function check_completion()
-      completed_count = completed_count + 1
-      if completed_count >= expected_count then
-        callback({ items = items })
-      end
-    end
-    
-    -- Get tables
-    sql_schema.get_tables(function(tables, error)
-      if not error and tables then
-        for _, table_name in ipairs(tables) do
-          table.insert(items, {
-            label = table_name,
-            kind = 21, -- Class
-            detail = "table",
-            insertText = table_name,
-          })
-        end
-      end
-      check_completion()
-    end)
-    
-    -- Get views
-    sql_schema.get_views(function(views, error)
-      if not error and views then
-        for _, view_name in ipairs(views) do
-          table.insert(items, {
-            label = view_name,
-            kind = 8, -- Interface
-            detail = "view",
-            insertText = view_name,
-          })
-        end
-      end
-      check_completion()
-    end)
+    complete_tables_and_views(nil, callback)
   end
 end
 

@@ -108,6 +108,7 @@ setup_shell() {
   create_symlink "$PWD/.inputrc" "$HOME/.inputrc"
   create_symlink "$PWD/.zsh_functions" "$HOME/.zsh_functions"
   create_symlink "$PWD/newsboat/" "$HOME/.newsboat"
+  create_symlink "$PWD/visidata/visidatarc" "$HOME/.visidatarc"
 }
 
 # Setup Neovim
