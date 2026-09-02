@@ -1,0 +1,56 @@
+azip() {
+  local server="$1"
+  local rule_name="${2:-${USER}-$(hostname -s)}"
+  local ip rg
+
+  if [[ -z "$server" ]]; then
+    echo "Usage: azip <sql-server-name> [rule-name]"
+    echo "Adds/updates a firewall rule for your current public IP on the given Azure SQL server."
+    echo "Rule name defaults to ${USER}-$(hostname -s). Uses the active az subscription."
+    return 1
+  fi
+
+  ip="$(curl -4 -fsS --max-time 5 https://api.ipify.org || curl -4 -fsS --max-time 5 https://ifconfig.me)"
+  if [[ ! "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Could not determine public IPv4 address"
+    return 1
+  fi
+
+  rg="$(az sql server list --query "[?name=='$server'].resourceGroup" -o tsv)"
+  if [[ -z "$rg" ]]; then
+    echo "SQL server '$server' not found in subscription: $(az account show --query name -o tsv)"
+    return 1
+  fi
+
+  local current_ip
+  current_ip="$(az sql server firewall-rule show \
+    --resource-group "$rg" \
+    --server "$server" \
+    --name "$rule_name" \
+    --query startIpAddress -o tsv 2>/dev/null)"
+
+  if [[ "$current_ip" == "$ip" ]]; then
+    echo "Rule '$rule_name' on $server already set to $ip"
+    return 0
+  fi
+
+  if [[ -n "$current_ip" ]]; then
+    echo "Updating rule '$rule_name' on $server: $current_ip -> $ip"
+    az sql server firewall-rule update \
+      --resource-group "$rg" \
+      --server "$server" \
+      --name "$rule_name" \
+      --start-ip-address "$ip" \
+      --end-ip-address "$ip" \
+      --output none && echo "Done"
+  else
+    echo "Adding $ip to $server (rule: $rule_name)"
+    az sql server firewall-rule create \
+      --resource-group "$rg" \
+      --server "$server" \
+      --name "$rule_name" \
+      --start-ip-address "$ip" \
+      --end-ip-address "$ip" \
+      --output none && echo "Done"
+  fi
+}

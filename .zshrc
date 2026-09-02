@@ -164,6 +164,8 @@ autoload -Uz buildsql
 
 autoload -Uz sqlchanges
 
+autoload -Uz azip
+
 autoload -Uz _claude-bootstrap
 
 autoload -Uz claude-dev
