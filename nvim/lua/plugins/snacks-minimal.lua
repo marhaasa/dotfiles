@@ -10,6 +10,7 @@ return {
     quickfile = { enabled = true },     -- Faster file opening
     bigfile = { enabled = true },       -- Graceful large file handling
     rename = { enabled = true },        -- LSP-aware file renaming
+    image = { enabled = true },         -- Inline image preview (markdown) in Ghostty/kitty
 
     -- Disable visual noise
     scroll = { enabled = false },

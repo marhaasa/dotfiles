@@ -6,6 +6,23 @@ return {
       servers = {
         sqls = false,
         sqlls = false,
+
+        -- markdown-oxide: Obsidian-aware markdown LSP (wikilink completion, gd on [[links]],
+        -- backlinks via references, hover, rename with link updates). Installed with Homebrew,
+        -- so mason is skipped. Only attaches to files inside the notes vault (~/notes).
+        markdown_oxide = {
+          mason = false,
+          root_dir = function(bufnr, on_dir)
+            local notes = vim.uv.fs_realpath(vim.fn.expand("~/notes"))
+            local file = vim.uv.fs_realpath(vim.api.nvim_buf_get_name(bufnr))
+            if notes and file and vim.startswith(file, notes .. "/") then
+              on_dir(notes)
+            end
+          end,
+          capabilities = {
+            workspace = { didChangeWatchedFiles = { dynamicRegistration = true } },
+          },
+        },
       },
       setup = {
         sqls = function()

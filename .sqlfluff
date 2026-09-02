@@ -1,0 +1,27 @@
+# sqlfluff config for T-SQL, mirroring .sql-formatter.json (upper-case keywords,
+# types and functions, 4-space indent). Used by conform.nvim via --config; see
+# nvim/lua/plugins/formatters.lua. Formatting is manual only (<leader>sF in .sql buffers).
+[sqlfluff]
+dialect = tsql
+templater = raw
+max_line_length = 120
+large_file_skip_byte_limit = 0
+
+[sqlfluff:indentation]
+indent_unit = space
+tab_space_size = 4
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.functions]
+extended_capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.types]
+extended_capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.literals]
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.identifiers]
+extended_capitalisation_policy = consistent

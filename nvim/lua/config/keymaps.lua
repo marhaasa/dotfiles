@@ -90,65 +90,9 @@ local function create_and_open_new_note()
   end
 end
 
-local function yank_and_open_markdown_link()
-  -- Get the text inside wikilink brackets [[link]]
-  -- Position cursor inside the link, then search for the pattern
-  local line = vim.api.nvim_get_current_line()
-  local col = vim.api.nvim_win_get_cursor(0)[2] + 1 -- 1-indexed
-
-  -- Find wikilink at cursor position
-  local link_text = nil
-  for match in line:gmatch("%[%[(.-)%]%]") do
-    local start_pos, end_pos = line:find("%[%[" .. match:gsub("([%.%^%$%(%)%[%]%*%+%-%?])", "%%%1") .. "%]%]")
-    if start_pos and col >= start_pos and col <= end_pos then
-      link_text = match
-      break
-    end
-  end
-
-  if not link_text or link_text == "" then
-    print("No wikilink found at cursor position")
-    return
-  end
-
-  local scan = require("plenary.scandir")
-
-  -- Search in notes directory first, fall back to current directory
-  local notes_dir = vim.fn.expand("~/notes")
-  local search_dir = vim.fn.isdirectory(notes_dir) == 1 and notes_dir or vim.loop.cwd()
-
-  -- Build case-insensitive pattern: "abc" -> "[Aa][Bb][Cc]"
-  local function case_insensitive_pattern(text)
-    return text:gsub(".", function(c)
-      if c:match("%a") then
-        return "[" .. c:upper() .. c:lower() .. "]"
-      elseif c:match("[%.%^%$%(%)%[%]%*%+%-%?]") then
-        return "%" .. c -- escape special chars
-      else
-        return c
-      end
-    end)
-  end
-
-  local pattern = case_insensitive_pattern(link_text)
-
-  local files = scan.scan_dir(search_dir, {
-    depth = 10,
-    hidden = true,
-    add_dirs = false,
-    search_pattern = "/" .. pattern .. "%.md$",
-  })
-
-  if #files > 0 then
-    vim.cmd("edit " .. vim.fn.fnameescape(files[1]))
-  else
-    print("No file found matching: " .. link_text)
-  end
-end
-
 -- Note-taking keymaps
 vim.keymap.set("n", "<leader>zn", create_and_open_new_note, { desc = "Create and open new note" })
-vim.keymap.set("n", "<leader>zo", yank_and_open_markdown_link, { desc = "Open note from link" })
+-- Following [[wikilinks]] is handled by the markdown-oxide LSP: use `gd` (and `gr` for backlinks).
 
 -- sage command
 vim.api.nvim_create_user_command('SageTag', function()
@@ -215,4 +159,3 @@ vim.keymap.set('t', '<C-q>', [[<C-\><C-n><C-w>p]], { noremap = true, silent = tr
 
 -- Create user commands for note-taking functions
 vim.api.nvim_create_user_command("CreateAndOpenNewNote", create_and_open_new_note, {})
-vim.api.nvim_create_user_command("YankAndSearchMarkdownLink", yank_and_open_markdown_link, {})
