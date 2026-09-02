@@ -38,25 +38,6 @@ vim.api.nvim_create_autocmd("FileType", {
 --   command = "PandocFolding none",
 -- })
 
--- Go related
-
--- Run gofmt + goimport on save
-
-local format_sync_grp = vim.api.nvim_create_augroup("GoImport", {})
-vim.api.nvim_create_autocmd("BufWritePre", {
-  pattern = "*.go",
-  callback = function()
-    require("go.format").goimport()
-  end,
-  group = format_sync_grp,
-})
-
-vim.api.nvim_create_autocmd("filetype", {
-  -- group = augroup("wrap_spell"),
-  pattern = { "go" },
-  command = 'lua require("cmp").setup { enabled = true }',
-})
-
 --vim.cmd([[autocmd BufWritePre <buffer> lua vim.lsp.buf.format()]])
 --local cmp = require("cmp")
 --local cmp_action = require("lsp-zero").cmp_action()
@@ -194,7 +175,7 @@ vim.api.nvim_create_autocmd("FileType", {
     
     -- Better folding
     vim.opt_local.foldmethod = 'expr'
-    vim.opt_local.foldexpr = 'nvim_treesitter#foldexpr()'
+    vim.opt_local.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
     vim.opt_local.foldenable = false
     
     -- Custom wikilink highlighting without icons (with safety check)

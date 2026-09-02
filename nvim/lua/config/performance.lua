@@ -56,3 +56,21 @@ vim.api.nvim_create_autocmd("BufReadPre", {
     end
   end,
 })
+-- Treesitter highlighting is started per FileType by LazyVim (nvim-treesitter main branch).
+-- Turn it back off for files over 100 KB; snacks.bigfile covers the >1.5 MB case.
+vim.api.nvim_create_autocmd("FileType", {
+  callback = function(ev)
+    local name = vim.api.nvim_buf_get_name(ev.buf)
+    if name == "" then
+      return
+    end
+    local ok, stat = pcall(vim.uv.fs_stat, name)
+    if ok and stat and stat.size > 100 * 1024 then
+      vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(ev.buf) then
+          pcall(vim.treesitter.stop, ev.buf)
+        end
+      end)
+    end
+  end,
+})

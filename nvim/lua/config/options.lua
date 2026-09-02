@@ -2,6 +2,10 @@
 -- Default options that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/options.lua
 -- Add any additional options here
 
+-- Use Telescope for all LazyVim picker keymaps (gd, gr, <leader>s*, <leader>gd ...).
+-- With "auto" and the snacks picker disabled, LazyVim falls back to fzf-lua instead.
+vim.g.lazyvim_picker = "telescope"
+
 local opt = vim.opt
 
 opt.ignorecase = true

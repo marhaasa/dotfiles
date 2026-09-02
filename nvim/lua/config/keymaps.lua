@@ -36,8 +36,8 @@ vim.keymap.set("n", "<leader>wsq", 'ciw""<Esc>P', { desc = "Surround word with q
 
 -- Text replacement
 vim.keymap.set("n", "<leader>rbs", "<cmd>%s/\\//g<CR>", { desc = "Replace backward slashes" })
-vim.keymap.set("n", "<leader>rlt", "<cmd>lua require('textcase').current_word('to_title_case')<CR>",
-  { desc = "Convert word to title case" })
+-- Title-case the word under the cursor via vim-abolish coercion (crt); textcase.nvim is not installed.
+vim.keymap.set("n", "<leader>rlt", "crt", { remap = true, desc = "Convert word to title case" })
 
 
 -- ============================================================================
