@@ -203,12 +203,11 @@ vim.keymap.set('t', '<C-q>', [[<C-\><C-n><C-w>p]], { noremap = true, silent = tr
 
 
 -- ============================================================================
--- 🤖 AI INTEGRATION (GP.NVIM)
+-- 🤖 AI INTEGRATION (CLAUDE CODE)
 -- ============================================================================
 
--- GP.nvim keymaps are defined in gp.lua plugin file due to their complexity
--- and tight integration with the plugin configuration. They use <C-g> prefix.
--- See KEYMAPS.md for full reference of all GP.nvim keymaps.
+-- claudecode.nvim is the only AI plugin. Its keymaps live under <leader>a and are listed in
+-- lua/plugins/claudecode.lua (headless edit: <leader>ae; accept/deny diff: <leader>aa / <leader>ad).
 
 -- ============================================================================
 -- 📝 COMMANDS

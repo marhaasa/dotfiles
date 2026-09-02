@@ -160,7 +160,7 @@ function M.statusline()
   return "%#" .. hl .. "#" .. text .. "%*"
 end
 
-M.STATUSLINE = "%f %h%w%m%r%=%{%v:lua.require'sql.connection'.statusline()%}  %-14.(%l,%c%V%) %P"
+M.STATUSLINE = "%f %h%w%m%r%=%{%v:lua.ClaudeStatus.component()%}%{%v:lua.require'sql.connection'.statusline()%}  %-14.(%l,%c%V%) %P"
 
 function M.setup_statusline_hl()
   local st = vim.api.nvim_get_hl(0, { name = "StatusLine", link = false })

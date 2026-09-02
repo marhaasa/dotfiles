@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Claude Code hook -> Neovim statusline.
+#
+# Registered in ~/.claude/settings.json (see nvim/lua/config/claude_status.lua for the display
+# side). A Claude process started by claudecode.nvim inherits $NVIM, the editor's RPC socket, so
+# the state is pushed straight into that Neovim instance. Outside Neovim $NVIM is unset and this
+# exits immediately. Reads the hook payload (JSON) on stdin.
+#
+#   SessionStart                      -> idle
+#   UserPromptSubmit                  -> busy
+#   PreToolUse  (AskUserQuestion)     -> question   (Claude wants an answer from you)
+#   PreToolUse  (any other tool)      -> busy       (also clears "waiting" after an approval)
+#   PostToolUse (AskUserQuestion)     -> busy       (you answered)
+#   PermissionRequest (Edit/Write...)  -> diff       (in manual mode the edit permission IS the diff)
+#   PermissionRequest (other tools)    -> waiting    (Bash etc.; open the terminal to answer)
+#   Notification (elicitation_dialog)  -> waiting
+#   Stop                              -> replied    (turn finished; read it with <leader>ac)
+#   SessionEnd                        -> closed
+set -u
+[ -n "${NVIM:-}" ] || exit 0
+command -v nvim >/dev/null 2>&1 || exit 0
+
+input=$(cat)
+event=$(printf '%s' "$input" | jq -r '.hook_event_name // empty' 2>/dev/null)
+tool=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
+
+case "$event" in
+  SessionStart)      state=idle ;;
+  UserPromptSubmit)  state=busy ;;
+  PreToolUse)
+    if [ "$tool" = "AskUserQuestion" ]; then state=question; else state=busy; fi ;;
+  PostToolUse)
+    [ "$tool" = "AskUserQuestion" ] || exit 0
+    state=busy ;;
+  PermissionRequest)
+    case "$tool" in
+      Edit|Write|MultiEdit|NotebookEdit) state=diff ;;
+      *)                                 state=waiting ;;
+    esac ;;
+  Notification)
+    # permission_prompt is already covered (and better classified) by PermissionRequest.
+    ntype=$(printf '%s' "$input" | jq -r '.notification_type // empty' 2>/dev/null)
+    case "$ntype" in
+      elicitation_dialog) state=waiting ;;
+      *)                  exit 0 ;;
+    esac ;;
+  Stop)              state=replied ;;
+  SessionEnd)        state=closed ;;
+  *) exit 0 ;;
+esac
+
+nvim --server "$NVIM" --remote-expr "v:lua.ClaudeStatus.set('$state')" >/dev/null 2>&1 || true
+exit 0

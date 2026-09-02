@@ -14,7 +14,7 @@ The leader key is `<Space>` (set by LazyVim default).
 - LazyGit keymaps: `lua/plugins/lazygit.lua` 
 - No Neck Pain keymaps: `lua/plugins/no-neckpain.lua`
 - Basic SQL keymaps: `lua/plugins/dadbod.lua`
-- GP.nvim (AI) keymaps: `lua/plugins/gp.lua`
+- Claude Code (AI) keymaps: `lua/plugins/claudecode.lua` (LazyVim `ai.claudecode` extra)
 
 ## Keymap Categories
 
@@ -80,47 +80,30 @@ The leader key is `<Space>` (set by LazyVim default).
 | `<leader>S` | n | Stop LSP server | keymaps.lua |
 | `<leader>nn` | n | Toggle No Neck Pain | no-neckpain.lua |
 
-### 🤖 **AI & Completion**
-| Key | Mode | Description | Plugin/Function |
-|-----|------|-------------|-----------------|
-| `<leader>ce` | n | Enable blink completion | blink.cmp |
-| `<leader>cd` | n | Disable blink completion | blink.cmp |
+### 🤖 **AI (Claude Code) - `<leader>a` prefix**
 
-#### **GP.nvim (AI Chat) - `<C-g>` prefix**
-| Key | Mode | Description |
-|-----|------|-------------|
-| `<C-g>c` | n,i | New Chat |
-| `<C-g>t` | n,i | Toggle Chat |
-| `<C-g>f` | n,i | Chat Finder |
-| `<C-g>p` | v | Visual Chat Paste |
-| `<C-g><C-x>` | n,i | New Chat split |
-| `<C-g><C-v>` | n,i | New Chat vsplit |
-| `<C-g><C-t>` | n,i | New Chat tabnew |
-| `<C-g>r` | n,i,v | Rewrite text |
-| `<C-g>a` | n,i,v | Append text |
-| `<C-g>b` | n,i,v | Prepend text |
-| `<C-g>i` | v | Implement selection |
-| `<C-g>gp` | n,i,v | Popup |
-| `<C-g>ge` | n,i,v | New buffer |
-| `<C-g>gn` | n,i,v | New |
-| `<C-g>gv` | n,i,v | Vertical new |
-| `<C-g>gt` | n,i,v | Tab new |
-| `<C-g>x` | n,i,v | Toggle Context |
-| `<C-g>s` | n,i,v,x | Stop |
-| `<C-g>n` | n,i,v,x | Next Agent |
+claudecode.nvim connects the `claude` CLI to Neovim over the IDE protocol. Claude is started in
+`--permission-mode manual`, so every edit it proposes shows up as a diff you accept or reject.
 
-#### **Whisper (Speech-to-text) - `<C-g>w` prefix**
-| Key | Mode | Description |
-|-----|------|-------------|
-| `<C-g>ww` | n,i,v | Whisper transcribe |
-| `<C-g>wr` | n,i,v | Whisper rewrite |
-| `<C-g>wa` | n,i,v | Whisper append |
-| `<C-g>wb` | n,i,v | Whisper prepend |
-| `<C-g>wp` | n,i,v | Whisper popup |
-| `<C-g>we` | n,i,v | Whisper new buffer |
-| `<C-g>wn` | n,i,v | Whisper new |
-| `<C-g>wv` | n,i,v | Whisper vertical |
-| `<C-g>wt` | n,i,v | Whisper tab new |
+| Key | Mode | Action |
+|-----|------|--------|
+| `<leader>ae` | n, v | Headless edit: types `@file#L1-9 <instruction>` into Claude and submits it; the diff appears when ready |
+| `<leader>aa` | n | Accept proposed diff (`:w` in the diff also accepts) |
+| `<leader>ad` | n | Deny proposed diff |
+| `<leader>ac` | n | Toggle the Claude terminal |
+| `<leader>af` | n | Focus the Claude terminal |
+| `<leader>as` | v | Send selection as context (shows the terminal) |
+| `<leader>ab` | n | Add current buffer as context |
+| `<leader>ar` | n | Resume last session |
+| `<leader>aC` | n | Continue session |
+| `<leader>am` | n | Select model |
+
+The statusline (active window only) shows Claude's state while the terminal is hidden: `working m:ss`,
+`asks a question`, `proposes a diff`, `needs permission` (non-edit tools), `replied` (cleared when you
+open the terminal), `prompt not submitted` (no hook receipt within 4 s), `idle`. Fed by Claude Code hooks
+(`scripts/claude-nvim-status`) into `lua/config/claude_status.lua`.
+
+Completion is blink.cmp (`<leader>ce` / `<leader>cd` enable/disable per buffer).
 
 ### 🎬 **Content Creation**
 | Key | Mode | Description | Plugin/Function |
@@ -137,7 +120,7 @@ For database operations to work properly, set these environment variables:
 ## Notes
 
 - All SQL-related keymaps are only active in SQL file types
-- GP.nvim keymaps are available globally for quick AI access
+- Claude Code keymaps are available globally under `<leader>a`
 - Date insertion uses the `gendate` command (must be in PATH)
 - Note-taking functions require `scribe` CLI tool
 - Some keymaps may conflict with LazyVim defaults - check `:map` for conflicts

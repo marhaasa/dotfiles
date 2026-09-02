@@ -29,3 +29,6 @@ opt.ruler = false
 opt.showcmd = false
 
 -- Note: Zettelkasten functions and keymaps have been moved to lua/config/keymaps.lua
+
+-- Claude Code state segment in the statusline (fed by scripts/claude-nvim-status via Claude hooks).
+require("config.claude_status")
