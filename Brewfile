@@ -1,17 +1,17 @@
-tap 'azure/functions'
-tap 'buo/cask-upgrade'
-tap 'cooklang/tap'
-tap 'felixkratz/formulae'
-tap 'graelo/tap'
+tap 'azure/functions', trusted: true
+tap 'buo/cask-upgrade', trusted: true
+tap 'cooklang/tap', trusted: true
+tap 'felixkratz/formulae', trusted: true
+tap 'graelo/tap', trusted: true
 tap 'homebrew/bundle'
 tap 'homebrew/services'
-tap 'julien-cpsn/atac'
-tap 'keith/formulae'
-tap 'lucaspickering/tap'
-tap 'marhaasa/tools'
-tap 'microsoft/mssql-release'
-tap 'saulpw/vd'
-tap 'xo/xo'
+tap 'julien-cpsn/atac', trusted: true
+tap 'keith/formulae', trusted: true
+tap 'lucaspickering/tap', trusted: true
+tap 'marhaasa/tools', trusted: true
+tap 'microsoft/mssql-release', trusted: true
+tap 'saulpw/vd', trusted: true
+tap 'xo/xo', trusted: true
 
 brew 'asciiquarium'
 brew 'atac'
@@ -99,7 +99,6 @@ cask 'ableton-live-lite'
 cask 'amethyst'
 cask 'arturia-software-center'
 cask 'claude'
-cask 'claude-code'
 cask 'crystalfetch'
 cask 'discord'
 cask 'docker-desktop'
