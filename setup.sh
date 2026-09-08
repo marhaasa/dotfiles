@@ -56,7 +56,7 @@ create_directories() {
   info "Creating directories..."
 
   # Config directories
-  mkdir -p "$HOME/.config"/{nvim,zsh,ghostty}
+  mkdir -p "$HOME/.config"/{nvim,zsh,ghostty,omniwm}
   mkdir -p "$HOME/.zsh_functions"
   mkdir -p "$HOME/.local/bin"
 
@@ -129,6 +129,25 @@ setup_neovim() {
 
 }
 
+# Setup OmniWM (tiling window manager). settings.toml is the canonical, live-reloaded
+# config; the symlink target is preserved by OmniWM's atomic saves (>= 0.6.3).
+setup_omniwm() {
+  info "Setting up OmniWM..."
+
+  if [[ "$OS" == "macos" ]]; then
+    create_symlink "$PWD/omniwm/settings.toml" "$HOME/.config/omniwm/settings.toml"
+
+    # OmniWM requires "Displays have separate Spaces" (System Settings > Desktop & Dock >
+    # Mission Control). spans-displays=1 means it is OFF; unset or 0 means ON.
+    if [[ "$(defaults read com.apple.spaces spans-displays 2>/dev/null || echo 0)" == "1" ]]; then
+      defaults write com.apple.spaces spans-displays -bool false
+      warn "Enabled 'Displays have separate Spaces' for OmniWM. Log out and back in to apply."
+    fi
+  else
+    warn "OmniWM setup only configured for macOS"
+  fi
+}
+
 # Setup Ghostty
 setup_ghostty() {
   info "Setting up Ghostty..."
@@ -141,6 +160,39 @@ setup_ghostty() {
 }
 
 # Setup notes and iCloud (macOS only)
+# Resolve an installed app bundle: Spotlight lookup by bundle id first, then the
+# given fallback paths. Prints the path, or returns 1 if the app is not installed.
+resolve_app() {
+  local bundle_id=$1
+  shift
+  local path
+  path=$(mdfind "kMDItemCFBundleIdentifier == '$bundle_id'" 2>/dev/null \
+    | grep -E '^/(System/)?Applications/' | head -1)
+  if [[ -n "$path" && -d "$path" ]]; then
+    echo "$path"
+    return 0
+  fi
+  for path in "$@"; do
+    if [[ -d "$path" ]]; then
+      echo "$path"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Add an app to the Dock at a position, skipping apps that are not installed.
+dock_add() {
+  local position=$1 bundle_id=$2
+  shift 2
+  local app
+  if app=$(resolve_app "$bundle_id" "$@"); then
+    dockutil --add "$app" --position "$position" --no-restart
+  else
+    warn "Dock: $bundle_id not installed, skipping"
+  fi
+}
+
 setup_macos_specific() {
   if [[ "$OS" != "macos" ]]; then
     return
@@ -168,12 +220,14 @@ setup_macos_specific() {
   # Remove everything first (optional)
   dockutil --remove all --no-restart
 
-  # Add your favorite apps in order:
-  dockutil --add "/Applications/Ghostty.app" --position 1
-  dockutil --add "/System/Applications/Safari.app" --position 2
-  dockutil --add "/Applications/Claude.app" --position 3
-  dockutil --add "/System/Applications/Calendar.app" --position 4
-  dockutil --add "/System/Applications/Music.app" --position 5
+  # Add your favorite apps in order. Apps are resolved by bundle id so a moved
+  # bundle (e.g. Safari, which lives in /Applications, not /System/Applications)
+  # never becomes a dead "?" tile; unknown apps are skipped with a warning.
+  dock_add 1 com.mitchellh.ghostty          "/Applications/Ghostty.app"
+  dock_add 2 com.apple.Safari               "/Applications/Safari.app"
+  dock_add 3 com.anthropic.claudefordesktop "/Applications/Claude.app"
+  dock_add 4 com.apple.iCal                 "/System/Applications/Calendar.app"
+  dock_add 5 com.apple.Music                "/System/Applications/Music.app"
 
   # Remove recent apps part of Dock
   defaults write com.apple.dock show-recents -bool false
@@ -184,6 +238,52 @@ setup_macos_specific() {
   info "Dock configured!"
 }
 
+# Homebrew 6 ignores formulae and casks from third-party taps until the tap is
+# trusted. `brew bundle install` persists the trust declared with `trusted: true`
+# in the Brewfile, but only while processing the tap entry, so formulae from that
+# tap are not upgrade-checked on the same run. Trusting up front (idempotent, and
+# valid before the tap is even tapped) makes the first run complete.
+trust_brewfile_taps() {
+  local tap
+  while IFS= read -r tap; do
+    [[ -n "$tap" ]] || continue
+    brew trust "$tap" >/dev/null 2>&1 || warn "Could not trust tap $tap"
+  done < <(sed -nE "s/^tap '([^']+)', trusted: true.*/\1/p" Brewfile)
+}
+
+# Casks whose Caskroom still holds a full copy of the old app, instead of a symlink
+# to /Applications, make `brew upgrade` fail with "It seems there is already an App
+# at '/opt/homebrew/Caskroom/...'": brew cannot move the old app back before
+# replacing it. Self-updating apps (Signal, VS Code, Postman, Miro, ...) end up in
+# this state. `--force` lets brew overwrite the stale copy. Only casks brew already
+# considers outdated are listed, so up-to-date casks are never touched.
+stale_outdated_casks() {
+  local caskroom outdated cask app
+  caskroom="$(brew --prefix)/Caskroom"
+  outdated=$(brew outdated --cask --quiet 2>/dev/null) || return 0
+  for cask in $outdated; do
+    for app in "$caskroom/$cask"/*/*.app; do
+      if [[ -d "$app" && ! -L "$app" ]]; then
+        echo "$cask"
+        break
+      fi
+    done
+  done
+}
+
+retry_stale_cask_upgrades() {
+  local stale
+  stale=$(stale_outdated_casks | tr '\n' ' ')
+  stale=${stale% }
+  [[ -n "$stale" ]] || return 0
+
+  warn "Stale app copies in the Caskroom block upgrading: $stale"
+  info "Retrying with: brew upgrade --cask --force $stale"
+  # shellcheck disable=SC2086
+  brew upgrade --cask --force $stale \
+    || warn "Still failing. Casks that need sudo or a quit app (Docker, Parallels) may need a manual: brew upgrade --cask --force <cask>"
+}
+
 # Install packages
 install_packages() {
   info "Installing packages..."
@@ -191,10 +291,27 @@ install_packages() {
   if [[ "$OS" == "macos" ]] && command -v brew &>/dev/null; then
     if [[ -f "Brewfile" ]]; then
       info "Installing Homebrew packages..."
-      brew bundle || warn "Some Homebrew packages failed to install"
+      trust_brewfile_taps
+      if ! brew bundle; then
+        warn "Some Homebrew packages failed to install or upgrade"
+        retry_stale_cask_upgrades
+      fi
     else
       warn "Brewfile not found"
     fi
+  fi
+
+  # Claude Code: installed with the native installer (self-updating), not Homebrew.
+  # The Homebrew cask lagged behind, and its /opt/homebrew/bin/claude shadowed the
+  # native ~/.local/bin/claude on PATH, so `claude` kept running an old version.
+  if [[ -x "$HOME/.local/bin/claude" ]]; then
+    info "Claude Code already installed (native)"
+  else
+    info "Installing Claude Code (native installer)..."
+    curl -fsSL https://claude.ai/install.sh | bash || warn "Claude Code install failed"
+  fi
+  if brew list --cask claude-code &>/dev/null; then
+    warn "Homebrew cask 'claude-code' is still installed and shadows the native install: brew uninstall --cask claude-code"
   fi
 
   # Install Python tools
@@ -267,6 +384,7 @@ main() {
   setup_shell
   setup_neovim
   setup_ghostty
+  setup_omniwm
   setup_macos_specific
   install_packages
   post_install

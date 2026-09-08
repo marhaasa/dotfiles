@@ -1,0 +1,305 @@
+#!/bin/zsh
+# omniwm-layout: Apply predefined window layout templates
+# Usage: omniwm-layout <template>
+#
+# Templates:
+#   tmux-3      - Classic tmux: wide left pane, two stacked right panes
+#   split       - 50/50 two-column split
+#   3-col       - Three equal columns (all visible only if niri.visibleContainerCount >= 3)
+#   centered    - Single focused window, full width
+#   monocle     - Amethyst-style fullscreen layout: every window in one full-width
+#                 tabbed column; focus up/down cycles through the stack
+#
+# Works with the tiled windows on the current workspace (the active workspace on
+# the interaction monitor).
+#
+# Requires OmniWM >= 0.6.6 (IPC protocol 15) with general.ipcEnabled = true in
+# settings.toml, and an omniwmctl that matches the running app version exactly.
+
+set -euo pipefail
+
+CTL="omniwmctl"
+
+die() { echo "error: $*" >&2; exit 1; }
+
+require_omniwm() {
+    command -v "$CTL" >/dev/null 2>&1 || die "$CTL not found in PATH"
+    "$CTL" ping >/dev/null 2>&1 \
+        || die "cannot reach OmniWM over IPC (is OmniWM running with IPC enabled, and does $CTL match the app version?)"
+}
+
+# Number of the current workspace (falls back to its raw name)
+get_current_workspace() {
+    $CTL query workspaces --current --format json 2>/dev/null \
+        | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+workspaces = data['result']['payload']['workspaces']
+if not workspaces:
+    sys.exit('no current workspace reported')
+ws = workspaces[0]
+print(ws['number'] if ws.get('number') is not None else ws['rawName'])
+"
+}
+
+# Tiled, non-hidden window IDs on the current workspace, sorted by position.
+# IDs are session-scoped opaque ids (ow_...) and only valid for this OmniWM run.
+get_workspace_windows() {
+    local ws
+    ws=$(get_current_workspace)
+    $CTL query windows --workspace "$ws" --format json 2>/dev/null \
+        | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+windows = data['result']['payload']['windows']
+tiled = [w for w in windows if w.get('mode') == 'tiling' and not w.get('hiddenReason')]
+tiled.sort(key=lambda w: (w['frame']['x'], w['frame']['y']))
+for w in tiled:
+    print(w['id'])
+"
+}
+
+# Layout steps are best effort: an already-satisfied move is reported by OmniWM
+# as ignored/no_change, which must not abort the template.
+try_cmd() { "$@" 2>/dev/null || true; }
+
+focus_window()      { $CTL window focus "$1"; }
+move()              { try_cmd $CTL command move "$1"; }
+move_column()       { try_cmd $CTL command move-column "$1"; }
+balance()           { $CTL command balance-sizes; }
+cycle_size()        { $CTL command cycle-size "$1"; }                       # was: cycle-column-width
+set_layout()        { try_cmd $CTL command set-workspace-layout "$1"; }
+toggle_full_width() { $CTL command toggle-container-full-primary-span; }    # was: toggle-column-full-width
+toggle_tabbed()     { $CTL command toggle-column-tabbed; }
+
+# Consolidate given windows into a single column by stacking vertically
+consolidate_stack() {
+    # Focus the first window — this is the anchor
+    focus_window "$1"
+    sleep 0.1
+    shift
+    for wid in "$@"; do
+        focus_window "$wid"
+        sleep 0.05
+        # Move left to get into the same column, then down to stack
+        repeat 10 { move left }
+        sleep 0.05
+        move down
+        sleep 0.05
+    done
+}
+
+# ── Templates ──────────────────────────────────────────────
+
+layout_tmux3() {
+    # Adaptive tmux layout:
+    #   1 window  → full width
+    #   2 windows → 50/50 side by side
+    #   3 windows → 50% left | 50% right (2 stacked)
+    local -a windows=("${(@f)$(get_workspace_windows)}")
+    local count=${#windows[@]}
+
+    (( count >= 1 )) || die "tmux-3 needs at least 1 visible window"
+
+    set_layout default
+
+    if (( count == 1 )); then
+        focus_window "$windows[1]"
+        sleep 0.1
+        toggle_full_width
+        echo "Applied: tmux (1 window → full width)"
+
+    elif (( count == 2 )); then
+        consolidate_stack "$windows[1]" "$windows[2]"
+        sleep 0.15
+
+        focus_window "$windows[1]"
+        sleep 0.1
+        move right
+        sleep 0.1
+        move_column left
+        sleep 0.1
+
+        balance
+        echo "Applied: tmux (2 windows → 50% | 50%)"
+
+    else
+        local w1=$windows[1] w2=$windows[2] w3=$windows[3]
+
+        consolidate_stack "$w1" "$w2" "$w3"
+        sleep 0.15
+
+        # Move w1 to its own column on the left
+        focus_window "$w1"
+        sleep 0.1
+        move right
+        sleep 0.1
+        move_column left
+        sleep 0.1
+
+        # Balance to 50/50 columns
+        balance
+        echo "Applied: tmux (3 windows → 50% left | 50% right stacked)"
+    fi
+}
+
+layout_split() {
+    # 50/50 two-column split
+    local -a windows=("${(@f)$(get_workspace_windows)}")
+    local count=${#windows[@]}
+
+    (( count >= 2 )) || die "split needs at least 2 visible windows (found $count)"
+
+    local w1=$windows[1] w2=$windows[2]
+
+    set_layout default
+
+    consolidate_stack "$w1" "$w2"
+    sleep 0.15
+
+    focus_window "$w1"
+    sleep 0.1
+    move right
+    sleep 0.1
+    move_column left
+    sleep 0.1
+
+    balance
+    echo "Applied: split (50% | 50%)"
+}
+
+layout_3col() {
+    # Three equal columns
+    local -a windows=("${(@f)$(get_workspace_windows)}")
+    local count=${#windows[@]}
+
+    (( count >= 3 )) || die "3-col needs at least 3 visible windows (found $count)"
+
+    local w1=$windows[1] w2=$windows[2] w3=$windows[3]
+
+    set_layout default
+
+    consolidate_stack "$w1" "$w2" "$w3"
+    sleep 0.15
+
+    focus_window "$w1"
+    sleep 0.1
+    move right
+    sleep 0.1
+
+    focus_window "$w2"
+    sleep 0.1
+    move right
+    sleep 0.1
+
+    balance
+    echo "Applied: 3-col (33% | 33% | 33%)"
+}
+
+layout_centered() {
+    # Focused window at full width
+    toggle_full_width
+    echo "Applied: centered (focused window full width)"
+}
+
+# True when the current workspace's tiled windows already sit in one stacked
+# (tabbed) column: OmniWM's IPC exposes no tab state, but tab members share one
+# frame. Also true for a single tiled window.
+column_is_stacked() {
+    local ws
+    ws=$(get_current_workspace)
+    $CTL query windows --workspace "$ws" --format json 2>/dev/null \
+        | python3 -c "
+import json, sys
+windows = json.load(sys.stdin)['result']['payload']['windows']
+frames = {tuple(sorted(w['frame'].items())) for w in windows
+          if w.get('mode') == 'tiling' and not w.get('hiddenReason')}
+sys.exit(0 if len(frames) <= 1 else 1)
+"
+}
+
+# True when the focused window already spans (almost) the full width of the
+# current display, so toggle-container-full-primary-span would shrink it again.
+focused_is_full_width() {
+    python3 - "$($CTL query focused-window --format json 2>/dev/null)" \
+              "$($CTL query displays --current --format json 2>/dev/null)" <<'PY'
+import json, sys
+try:
+    win = json.loads(sys.argv[1])['result']['payload']
+    win = win.get('window', win)
+    disp = json.loads(sys.argv[2])['result']['payload']['displays'][0]
+    vf = disp.get('visibleFrame') or disp.get('visible-frame') or disp['frame']
+    sys.exit(0 if win['frame']['width'] >= 0.9 * vf['width'] else 1)
+except Exception:
+    sys.exit(1)
+PY
+}
+
+layout_monocle() {
+    # Amethyst "fullscreen layout" equivalent: all tiled windows consolidated into
+    # one column, the column made full width and switched to tabbed mode, so one
+    # window shows at a time with a tab rail. Cycle with focus up/down
+    # (Option+Shift+Up/Down in the dotfiles scheme). Re-running only re-asserts
+    # full width; it never un-tabs an already stacked column.
+    local -a windows=("${(@f)$(get_workspace_windows)}")
+    local count=${#windows[@]}
+
+    (( count >= 1 )) || die "monocle needs at least 1 visible window"
+
+    set_layout default
+
+    if column_is_stacked; then
+        focused_is_full_width || toggle_full_width
+        echo "Applied: monocle (already one stacked column; full width asserted)"
+        return
+    fi
+
+    consolidate_stack "${windows[@]}"
+    sleep 0.15
+
+    focus_window "$windows[1]"
+    sleep 0.1
+    if ! focused_is_full_width; then
+        toggle_full_width
+        sleep 0.1
+    fi
+    toggle_tabbed
+    echo "Applied: monocle ($count windows → one full-width tabbed column)"
+}
+
+# ── Main ───────────────────────────────────────────────────
+
+usage() {
+    cat <<'USAGE'
+Usage: omniwm-layout <template>
+
+Templates:
+  tmux-3      Classic tmux: wide left, two stacked right
+  split       50/50 two-column split
+  3-col       Three equal columns
+  centered    Focused window full width
+  monocle     All windows in one full-width tabbed column (Amethyst fullscreen)
+
+Examples:
+  omniwm-layout tmux-3
+  omniwm-layout split
+USAGE
+    exit 1
+}
+
+[[ $# -lt 1 ]] && usage
+
+case "$1" in
+    -h|--help)      usage ;;
+esac
+
+require_omniwm
+
+case "$1" in
+    tmux-3|tmux3)   layout_tmux3 ;;
+    split|50)       layout_split ;;
+    3-col|3col)     layout_3col ;;
+    centered|focus) layout_centered ;;
+    monocle|fullscreen) layout_monocle ;;
+    *)              die "Unknown template: $1. Run 'omniwm-layout --help' for options." ;;
+esac
