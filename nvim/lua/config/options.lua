@@ -6,6 +6,10 @@
 -- With "auto" and the snacks picker disabled, LazyVim falls back to fzf-lua instead.
 vim.g.lazyvim_picker = "telescope"
 
+-- Snacks explorer instead of neo-tree. This install predates LazyVim 14
+-- (lazyvim.json install_version 7), so LazyVim would otherwise keep neo-tree as the default.
+vim.g.lazyvim_explorer = "snacks"
+
 local opt = vim.opt
 
 opt.ignorecase = true

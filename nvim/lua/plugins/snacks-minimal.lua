@@ -1,4 +1,4 @@
--- Snacks.nvim config - only statuscolumn and dashboard, disable highlighting features
+-- Snacks.nvim config - statuscolumn, dashboard, explorer; highlighting features disabled
 return {
   "folke/snacks.nvim",
   opts = {
@@ -11,6 +11,7 @@ return {
     bigfile = { enabled = true },       -- Graceful large file handling
     rename = { enabled = true },        -- LSP-aware file renaming
     image = { enabled = true },         -- Inline image preview (markdown) in Ghostty/kitty
+    explorer = { enabled = true, replace_netrw = true }, -- File explorer (<leader>e), LazyVim's current default
 
     -- Disable visual noise
     scroll = { enabled = false },
@@ -27,7 +28,17 @@ return {
     git = { enabled = false },
     gitbrowse = { enabled = false },
     lazygit = { enabled = false },
-    picker = { enabled = false },
+    -- The explorer is a picker in disguise, so the picker module must be on.
+    -- LazyVim's search/LSP keymaps still use Telescope (vim.g.lazyvim_picker).
+    picker = {
+      enabled = true,
+      ui_select = false, -- leave vim.ui.select to Telescope
+      sources = {
+        explorer = {
+          diagnostics = false, -- same as the old neo-tree override
+        },
+      },
+    },
     profiler = { enabled = false },
     scratch = { enabled = false },
     terminal = { enabled = false },
