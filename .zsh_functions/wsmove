@@ -1,0 +1,108 @@
+wsmove() {
+  # Move a whole OmniWM workspace (every window on it) to another monitor.
+  #
+  #   wsmove <workspace> <main|secondary|other|left|right|up|down>
+  #   wsmove <main|secondary|other|left|right|up|down>       # current workspace
+  #
+  #   wsmove 2 main         workspace 2 -> the macOS main display (built-in)
+  #   wsmove 2 secondary    workspace 2 -> the external display
+  #   wsmove secondary      current workspace -> the external display
+  #
+  # Wraps `omniwmctl workspace move-to-monitor <ws> <dir> --force`. main/secondary
+  # is resolved to a direction from the live display frames; with two displays any
+  # direction that OmniWM accepts lands on the other one, so the remaining
+  # directions are tried as fallbacks. --force overrides the workspace's
+  # monitorAssignment until the next display change.
+  local ws target
+  case $# in
+    1) target="$1" ;;
+    2) ws="$1"; target="$2" ;;
+    *) echo "usage: wsmove [workspace] <main|secondary|other|left|right|up|down>"; return 1 ;;
+  esac
+
+  if ! command -v omniwmctl >/dev/null || ! command -v jq >/dev/null; then
+    echo "wsmove: needs omniwmctl and jq"; return 1
+  fi
+
+  local displays workspaces
+  displays="$(omniwmctl query displays --format json 2>/dev/null | jq -c '.result.payload.displays')" || return 1
+  workspaces="$(omniwmctl query workspaces --format json 2>/dev/null | jq -c '.result.payload.workspaces')" || return 1
+  if [[ -z "$displays" || "$displays" == "null" ]]; then
+    echo "wsmove: omniwmctl returned nothing (is OmniWM running with IPC enabled?)"; return 1
+  fi
+
+  local ndisp
+  ndisp="$(jq 'length' <<<"$displays")"
+  if (( ndisp < 2 )); then
+    echo "wsmove: only one display connected, nothing to move to"; return 1
+  fi
+
+  # Resolve the workspace: current one, or by raw name / display name / number.
+  local wsrow
+  if [[ -z "$ws" ]]; then
+    wsrow="$(jq -c 'map(select(.isCurrent)) | .[0]' <<<"$workspaces")"
+  else
+    wsrow="$(jq -c --arg w "$ws" 'map(select(.rawName == $w or .displayName == $w or (.number|tostring) == $w)) | .[0]' <<<"$workspaces")"
+  fi
+  if [[ -z "$wsrow" || "$wsrow" == "null" ]]; then
+    echo "wsmove: no workspace matching '${ws:-current}'"; return 1
+  fi
+  local wsname srcid
+  wsname="$(jq -r '.rawName' <<<"$wsrow")"
+  srcid="$(jq -r '.display.id' <<<"$wsrow")"
+
+  # Resolve the target to a list of directions to try, in order.
+  local -a dirs
+  case "$target" in
+    left|right|up|down) dirs=("$target") ;;
+    main|secondary|other)
+      local tgtrow
+      case "$target" in
+        main)      tgtrow="$(jq -c 'map(select(.isMain)) | .[0]' <<<"$displays")" ;;
+        secondary) tgtrow="$(jq -c 'map(select(.isMain|not)) | .[0]' <<<"$displays")" ;;
+        other)     tgtrow="$(jq -c --arg s "$srcid" 'map(select(.id != $s)) | .[0]' <<<"$displays")" ;;
+      esac
+      if [[ -z "$tgtrow" || "$tgtrow" == "null" ]]; then
+        echo "wsmove: no $target display found"; return 1
+      fi
+      local tgtid tgtname
+      tgtid="$(jq -r '.id' <<<"$tgtrow")"
+      tgtname="$(jq -r '.name' <<<"$tgtrow")"
+      if [[ "$tgtid" == "$srcid" ]]; then
+        echo "workspace $wsname is already on $tgtname"; return 0
+      fi
+      # Guess the direction from frame origins, then fall back through the rest.
+      local guess
+      guess="$(jq -r --arg s "$srcid" --arg t "$tgtid" '
+        (map(select(.id == $s)) | .[0].frame) as $a
+        | (map(select(.id == $t)) | .[0].frame) as $b
+        | ($b.x - $a.x) as $dx | ($b.y - $a.y) as $dy
+        | if ($dx|fabs) >= ($dy|fabs)
+          then (if $dx > 0 then "right" else "left" end)
+          else (if $dy > 0 then "down" else "up" end)
+          end' <<<"$displays")"
+      case "$guess" in
+        right) dirs=(right left up down) ;;
+        left)  dirs=(left right up down) ;;
+        down)  dirs=(down up left right) ;;
+        up)    dirs=(up down left right) ;;
+        *)     dirs=(right left up down) ;;
+      esac
+      ;;
+    *) echo "usage: wsmove [workspace] <main|secondary|other|left|right|up|down>"; return 1 ;;
+  esac
+
+  local dir res
+  for dir in "${dirs[@]}"; do
+    res="$(omniwmctl workspace move-to-monitor "$wsname" "$dir" --force --format json 2>&1)"
+    if jq -e '.ok == true' <<<"$res" >/dev/null 2>&1; then
+      local now
+      now="$(omniwmctl query workspaces --format json 2>/dev/null \
+        | jq -r --arg w "$wsname" '.result.payload.workspaces | map(select(.rawName == $w)) | .[0].display.name')"
+      echo "workspace $wsname -> ${now:-?} ($dir)"
+      return 0
+    fi
+  done
+  echo "wsmove: OmniWM refused to move workspace $wsname ($target): ${res}"
+  return 1
+}

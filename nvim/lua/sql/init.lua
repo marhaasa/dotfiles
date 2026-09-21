@@ -3,11 +3,11 @@
 -- statusline indicator.
 --
 --   connection.lua  backend/credential state, :SqlConn/:SqlDb, statusline
---   runner.lua      query/script execution → VisiData or float
+--   runner.lua      query/script execution → VisiData, saved CSV, or float
 --   explore.lua     history picker, scratch buffers, describe-table float
 --   schema.lua      table/column introspection with caching (used by the
 --                   blink completion source in blink/cmp/sources/)
---   result.lua      sqlcmd output → CSV re-encoding
+--   result.lua      sqlcmd output → one CSV per result set
 --
 -- Keymaps live in config/keymaps.lua; setup() registers commands + autocmds.
 local connection = require("sql.connection")
@@ -17,6 +17,8 @@ local explore = require("sql.explore")
 local M = {}
 
 M.run_query = runner.run_query
+M.save_query = runner.save_query
+M.save_last_result = runner.save_last_result
 M.run_script = runner.run_script
 M.open_last_result = runner.open_last_result
 M.history_picker = explore.history_picker

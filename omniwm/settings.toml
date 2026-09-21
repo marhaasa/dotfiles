@@ -152,6 +152,51 @@ gridRow = 0
 monitorDisplayUUID = "37D8832A-2D66-02CA-B9F7-8F30A301B230"
 monitorName = "Built-in Retina Display"
 
+[[routing.arrangements]]
+id = "A0EDE355-B4EB-491C-A0EA-650D9CABCF40"
+
+[[routing.arrangements.monitors]]
+gridColumn = 1
+gridRow = 0
+monitorDisplayUUID = "F8844FE3-2A07-4EB7-BBF7-0E5161EF6523"
+monitorName = "LS34A650U"
+
+[[routing.arrangements.monitors]]
+gridColumn = 0
+gridRow = 0
+monitorDisplayUUID = "37D8832A-2D66-02CA-B9F7-8F30A301B230"
+monitorName = "Built-in Retina Display"
+
+[[routing.arrangements]]
+id = "FD2FEE1B-54FE-44BD-95E0-24412A7FC616"
+
+[[routing.arrangements.monitors]]
+gridColumn = 1
+gridRow = 0
+monitorDisplayUUID = "C2786FC9-80D5-4DD0-A033-0800AF9CF89C"
+monitorName = "LS49A950U"
+
+[[routing.arrangements.monitors]]
+gridColumn = 0
+gridRow = 0
+monitorDisplayUUID = "37D8832A-2D66-02CA-B9F7-8F30A301B230"
+monitorName = "Built-in Retina Display"
+
+[[routing.arrangements]]
+id = "484C5859-350A-4043-B3A8-60E8E1886089"
+
+[[routing.arrangements.monitors]]
+gridColumn = 0
+gridRow = 0
+monitorDisplayUUID = "A87DAC51-E272-4B3B-B7D4-876E8D03B83F"
+monitorName = "ASUS PA279CV"
+
+[[routing.arrangements.monitors]]
+gridColumn = 1
+gridRow = 0
+monitorDisplayUUID = "37D8832A-2D66-02CA-B9F7-8F30A301B230"
+monitorName = "Built-in Retina Display"
+
 [scratchpads]
 
 [scratchpads.labels]
@@ -670,35 +715,35 @@ binding = "Control+Command+Grave"
 id = "focusMonitorLast"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Control+Shift+Command+Left Arrow"
 id = "moveWorkspaceToMonitor.left"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Control+Shift+Command+Right Arrow"
 id = "moveWorkspaceToMonitor.right"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Control+Shift+Command+Up Arrow"
 id = "moveWorkspaceToMonitor.up"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Control+Shift+Command+Down Arrow"
 id = "moveWorkspaceToMonitor.down"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Control+Command+Left Arrow"
 id = "moveWindowToMonitor.left"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Control+Command+Right Arrow"
 id = "moveWindowToMonitor.right"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Control+Command+Up Arrow"
 id = "moveWindowToMonitor.up"
 
 [[hotkeys]]
-binding = "Unassigned"
+binding = "Control+Command+Down Arrow"
 id = "moveWindowToMonitor.down"
 
 [[hotkeys]]

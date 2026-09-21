@@ -32,6 +32,8 @@ Custom scheme kept from the old config. Option+Shift for switching/focusing, Con
 | Toggle column tabbed | `Option+Shift+T` |
 | First/last column | `Option+Shift+Home/End` |
 | Next / last monitor | `Control+Command+Tab` / `` Control+Command+` `` |
+| Move window to monitor left/right/up/down | `Control+Command+Arrows` |
+| Move whole workspace to monitor left/right/up/down | `Control+Command+Shift+Arrows` |
 | Command palette | `Control+Option+Shift+Space` |
 | Menu anywhere | `Control+Option+Shift+M` |
 | Raise floating windows | `Control+Option+R` |
@@ -39,7 +41,16 @@ Custom scheme kept from the old config. Option+Shift for switching/focusing, Con
 | Toggle workspace layout (Niri/Dwindle) | `Control+Option+L` |
 | Overview | `Control+Option+O` |
 
-Everything else (scratchpads, workspace slots, Dwindle resize, monitor moves) is `Unassigned`. Bind in Settings → Hotkeys or by editing the `binding` value in place.
+Everything else (scratchpads, workspace slots, Dwindle resize) is `Unassigned`. Bind in Settings → Hotkeys or by editing the `binding` value in place.
+
+## Moving a whole workspace between monitors
+
+In both saved arrangements the external display sits to the right of the built-in one, so "secondary" is `right` and "main" is `left`.
+
+- **Hotkey:** `Control+Command+Shift+Left/Right` throws the current workspace, with all its windows, onto the other monitor. `Control+Command+Left/Right` does the same for just the focused window.
+- **Shell:** `wsmove 2 main`, `wsmove 2 secondary`, or `wsmove secondary` for the current workspace (function in `.zsh_functions/wsmove`). It resolves main/secondary from the live display list and runs `omniwmctl workspace move-to-monitor <ws> <dir> --force`. The `--force` flag overrides the workspace's `monitorAssignment` until the next display change; edit `[workspaces.monitorAssignment]` in `settings.toml` to make a move permanent.
+- **Swap:** `omniwmctl command swap-workspace-with-monitor right` exchanges the two visible workspaces.
+- Workspaces 2, ❤️ and 🚀 are assigned to the secondary monitor and land there automatically when it is connected.
 
 ## Amethyst "fullscreen layout" equivalent
 
