@@ -47,6 +47,7 @@ brew 'kubernetes-cli'
 brew 'lazydocker'
 brew 'lazygit'
 brew 'markdown-oxide'
+brew 'mermaid-cli' # mmdc for snacks.image; ships no browser: npx @puppeteer/browsers install chrome-headless-shell --path ~/.cache/puppeteer (version from the mmdc error) after install/upgrade
 brew 'minikube'
 brew 'neovim'
 brew 'newsboat'

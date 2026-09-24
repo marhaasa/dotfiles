@@ -10,7 +10,10 @@ return {
     quickfile = { enabled = true },     -- Faster file opening
     bigfile = { enabled = true },       -- Graceful large file handling
     rename = { enabled = true },        -- LSP-aware file renaming
-    image = { enabled = true },         -- Inline image preview (markdown) in Ghostty/kitty
+    image = {                           -- Inline image preview (markdown) in Ghostty/kitty
+      enabled = true,
+      doc = { max_width = 140, max_height = 70 }, -- cells; default 80x40 makes wide diagrams tiny
+    },
     explorer = { enabled = true, replace_netrw = true }, -- File explorer (<leader>e), LazyVim's current default
 
     -- Disable visual noise
