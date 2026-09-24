@@ -5,3 +5,5 @@ newsboat/cache.db
 newsboat/cache.db.lock
 CLAUDE.md
 tmp/
+**/.claude/settings.local.json
+__pycache__/
