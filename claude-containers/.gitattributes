@@ -1,3 +1,0 @@
-# Everything here runs inside Linux containers or bash. Keep LF endings even
-# when checked out by Git for Windows.
-* text=auto eol=lf

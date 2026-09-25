@@ -323,6 +323,23 @@ install_packages() {
   fi
 }
 
+# moat: Docker sandbox for Claude Code (github.com/marhaasa/moat).
+# Clones it next to this repo, links the personal overrides in ./moat to
+# ~/.config/moat and puts the `moat` command on PATH.
+setup_moat() {
+  local moat_dir="$HOME/Repos/github.com/marhaasa/moat"
+  if [[ ! -d "$moat_dir" ]]; then
+    info "Cloning moat..."
+    git clone -q https://github.com/marhaasa/moat.git "$moat_dir" || { warn "Could not clone moat"; return; }
+  fi
+  mkdir -p "$HOME/.config" "$HOME/.local/bin"
+  create_symlink "$PWD/moat" "$HOME/.config/moat"
+  create_symlink "$moat_dir/moat" "$HOME/.local/bin/moat"
+  create_symlink "$moat_dir/moat-docker" "$HOME/.local/bin/moat-docker"
+  mkdir -p "$HOME/.claude/skills"
+  create_symlink "$moat_dir/skills/moat" "$HOME/.claude/skills/moat"
+}
+
 # Post-install tasks
 post_install() {
   info "Running post-install tasks..."
@@ -385,6 +402,7 @@ main() {
   setup_neovim
   setup_ghostty
   setup_omniwm
+  setup_moat
   setup_macos_specific
   install_packages
   post_install

@@ -1,5 +1,5 @@
 claude-dev() {
-  # Sandboxed Claude Code for one repo (defaults to the current directory).
+  # Claude Code in a moat sandbox for one repo (defaults to the current directory).
   (( $# == 0 )) && set -- "$PWD"
-  "$DOTFILES/claude-containers/sandbox.sh" up "$@"
+  "${MOAT_HOME:-$GHREPOS/moat}/moat" up "$@"
 }

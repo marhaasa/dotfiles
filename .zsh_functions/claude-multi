@@ -1,9 +1,9 @@
 claude-multi() {
-  # Sandboxed Claude Code with extra repos mounted read-only (--rw for read-write).
+  # moat sandbox with extra repos mounted read-only (--rw for read-write).
   if [[ $# -lt 2 ]]; then
     echo "Usage: claude-multi [--rw] <primary> <extra-repo> [extra-repo...]"
     echo "Primary is /workspace (read-write). Extras appear under /home/node/<name>, read-only unless --rw."
     return 1
   fi
-  "$DOTFILES/claude-containers/sandbox.sh" up "$@"
+  "${MOAT_HOME:-$GHREPOS/moat}/moat" up "$@"
 }
