@@ -1,9 +1,9 @@
 claude-multi() {
-  # moat sandbox with extra repos mounted read-only (--rw for read-write).
+  # eredo sandbox with extra repos mounted read-only (--rw for read-write).
   if [[ $# -lt 2 ]]; then
     echo "Usage: claude-multi [--rw] <primary> <extra-repo> [extra-repo...]"
     echo "Primary is /workspace (read-write). Extras appear under /home/node/<name>, read-only unless --rw."
     return 1
   fi
-  "${MOAT_HOME:-$GHREPOS/moat}/moat" up "$@"
+  "${EREDO_HOME:-$GHREPOS/eredo}/eredo" up "$@"
 }

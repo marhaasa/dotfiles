@@ -1,4 +1,4 @@
 claude-clean() {
   # Removes sandboxes, proxies and networks. Pass --volumes to drop config/history too.
-  "${MOAT_HOME:-$GHREPOS/moat}/moat" clean "$@"
+  "${EREDO_HOME:-$GHREPOS/eredo}/eredo" clean "$@"
 }

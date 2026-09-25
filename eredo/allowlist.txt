@@ -1,0 +1,2 @@
+# Merged with eredo's shipped allowlist. Per-repo extras go in <repo>/.eredo/allowlist.txt.
+mcp.context7.com

@@ -1,5 +1,5 @@
 claude-dev() {
-  # Claude Code in a moat sandbox for one repo (defaults to the current directory).
+  # Claude Code in a eredo sandbox for one repo (defaults to the current directory).
   (( $# == 0 )) && set -- "$PWD"
-  "${MOAT_HOME:-$GHREPOS/moat}/moat" up "$@"
+  "${EREDO_HOME:-$GHREPOS/eredo}/eredo" up "$@"
 }

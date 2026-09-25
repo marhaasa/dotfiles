@@ -323,21 +323,25 @@ install_packages() {
   fi
 }
 
-# moat: Docker sandbox for Claude Code (github.com/marhaasa/moat).
-# Clones it next to this repo, links the personal overrides in ./moat to
-# ~/.config/moat and puts the `moat` command on PATH.
-setup_moat() {
-  local moat_dir="$HOME/Repos/github.com/marhaasa/moat"
-  if [[ ! -d "$moat_dir" ]]; then
-    info "Cloning moat..."
-    git clone -q https://github.com/marhaasa/moat.git "$moat_dir" || { warn "Could not clone moat"; return; }
+# eredo: Docker sandbox for Claude Code (github.com/marhaasa/eredo).
+# Clones it next to this repo, builds the binary, links the personal
+# overrides in ./eredo to ~/.config/eredo, puts `eredo` on PATH and installs
+# the Claude skill.
+setup_eredo() {
+  local dir="$HOME/Repos/github.com/marhaasa/eredo"
+  if [[ ! -d "$dir" ]]; then
+    info "Cloning eredo..."
+    git clone -q https://github.com/marhaasa/eredo.git "$dir" || { warn "Could not clone eredo"; return; }
+  fi
+  if command -v go &>/dev/null; then
+    (cd "$dir" && go build -o eredo .) || warn "eredo build failed"
+  else
+    warn "go not found: brew install go, then run setup again (or: brew install marhaasa/tools/eredo)"
   fi
   mkdir -p "$HOME/.config" "$HOME/.local/bin"
-  create_symlink "$PWD/moat" "$HOME/.config/moat"
-  create_symlink "$moat_dir/moat" "$HOME/.local/bin/moat"
-  create_symlink "$moat_dir/moat-docker" "$HOME/.local/bin/moat-docker"
-  mkdir -p "$HOME/.claude/skills"
-  create_symlink "$moat_dir/skills/moat" "$HOME/.claude/skills/moat"
+  create_symlink "$PWD/eredo" "$HOME/.config/eredo"
+  [[ -x "$dir/eredo" ]] && create_symlink "$dir/eredo" "$HOME/.local/bin/eredo"
+  [[ -x "$dir/eredo" ]] && "$dir/eredo" install >/dev/null 2>&1
 }
 
 # Post-install tasks
@@ -402,7 +406,7 @@ main() {
   setup_neovim
   setup_ghostty
   setup_omniwm
-  setup_moat
+  setup_eredo
   setup_macos_specific
   install_packages
   post_install

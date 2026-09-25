@@ -1,3 +1,3 @@
 _claude-bootstrap() {
-  "${MOAT_HOME:-$GHREPOS/moat}/moat" bootstrap "$@"
+  "${EREDO_HOME:-$GHREPOS/eredo}/eredo" bootstrap "$@"
 }

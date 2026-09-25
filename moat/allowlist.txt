@@ -1,2 +1,0 @@
-# Merged with moat's shipped allowlist. Per-repo extras go in <repo>/.moat/allowlist.txt.
-mcp.context7.com
