@@ -35,6 +35,7 @@ setopt extended_glob null_glob
 path=(
     /opt/homebrew/opt/python@3.12/bin  # Homebrew Python first
     /opt/homebrew/bin
+    /opt/homebrew/sbin
     /opt/homebrew/opt/dotnet@8/bin
     $HOME/bin
     $HOME/.local/bin
