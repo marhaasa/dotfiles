@@ -80,21 +80,26 @@ vim.api.nvim_create_autocmd("LspAttach", {
   end,
 })
 
--- Suppress sqls connection error messages (patched once to avoid closure chain)
-if not vim.g._sqls_notify_patched then
-  vim.g._sqls_notify_patched = true
-  local original_notify = vim.notify
-  vim.notify = function(msg, level, opts)
-    if type(msg) == "string" and (
-      msg:match("sqls.*no database connection") or
-      msg:match("LSP%[sqls%]") or
-      msg:match("database connection")
-    ) then
-      return
+-- Suppress sqls connection error messages.
+-- Installed on VeryLazy so we never capture LazyVim's lazy_notify() queue shim
+-- as `original_notify` — doing so creates an infinite replay loop at startup.
+vim.api.nvim_create_autocmd("User", {
+  pattern = "VeryLazy",
+  once = true,
+  callback = function()
+    local original_notify = vim.notify
+    vim.notify = function(msg, level, opts)
+      if type(msg) == "string" and (
+        msg:match("sqls.*no database connection") or
+        msg:match("LSP%[sqls%]") or
+        msg:match("database connection")
+      ) then
+        return
+      end
+      return original_notify(msg, level, opts)
     end
-    return original_notify(msg, level, opts)
-  end
-end
+  end,
+})
 
 function _G.extract_tasks_and_remind()
   -- Redirect the output of the :g command to a variable
