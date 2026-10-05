@@ -179,6 +179,8 @@ autoload -Uz claude-attach
 
 autoload -Uz claude-multi
 
+autoload -Uz wsmove
+
 # ~~~~~~~~~~~~~~~ Completion ~~~~~~~~~~~~~~~~~~~~~~~~
 
 
