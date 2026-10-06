@@ -51,7 +51,7 @@ brew 'newsboat'
 brew 'node'
 brew 'ollama'
 brew 'pgformatter'
-brew 'pinentry-mac' # required by brew autoupdate --sudo (GUI password prompt)
+brew 'pinentry-mac' # was for brew autoupdate --sudo; autoupdate runs update+cleanup only since 2026-10-06 (background cask upgrades hollowed out apps)
 brew 'pipx'
 brew 'pkl'
 brew 'poetry'
