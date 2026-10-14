@@ -395,6 +395,36 @@ post_install() {
 
 }
 
+# Merge the Claude Code statusline hooks (used by nvim's claude_status.lua) into
+# ~/.claude/settings.json so they are wired up on every machine.
+setup_claude_hooks() {
+  info "Setting up Claude Code statusline hooks..."
+
+  local hooks_file="$PWD/scripts/claude-nvim-status.hooks.json"
+  local settings_file="$HOME/.claude/settings.json"
+
+  if ! command -v python3 &>/dev/null; then
+    warn "python3 not found; skipping Claude hooks merge. Merge $hooks_file into $settings_file manually."
+    return
+  fi
+
+  mkdir -p "$HOME/.claude"
+  python3 - "$hooks_file" "$settings_file" <<'PYEOF'
+import json, sys, os
+hooks_file, settings_file = sys.argv[1], sys.argv[2]
+hooks = json.load(open(hooks_file))["hooks"]
+settings = json.load(open(settings_file)) if os.path.exists(settings_file) else {}
+if settings.get("hooks") == hooks:
+    print("Claude hooks already up to date")
+else:
+    settings["hooks"] = hooks
+    with open(settings_file, "w") as f:
+        json.dump(settings, f, indent=2)
+        f.write("\n")
+    print("Claude hooks merged into " + settings_file)
+PYEOF
+}
+
 # Main installation
 main() {
   info "Starting dotfiles setup..."
@@ -409,6 +439,7 @@ main() {
   setup_eredo
   setup_macos_specific
   install_packages
+  setup_claude_hooks
   post_install
 
   info "Setup complete! 🎉"
