@@ -1,4 +1,3 @@
-monitorBarOverrides = []
 monitorDwindleOverrides = []
 monitorGapOverrides = []
 monitorNiriOverrides = []
@@ -70,6 +69,7 @@ right = 8.0
 top = 8.0
 
 [general]
+animationSpeed = 1.0
 animationsEnabled = true
 defaultLayoutType = "niri"
 hotkeysEnabled = true
@@ -116,6 +116,7 @@ containerPrimarySpanPresets = [0.3333333333333333, 0.5, 0.66]
 defaultContainerPrimarySpan = 0.5
 edgeGaps = true
 infiniteLoop = false
+resizeStepPercent = 5
 singleWindowFit = "container_primary_span"
 visibleContainerCount = 2
 
@@ -249,8 +250,8 @@ notchActiveZoneWidth = 180.0
 notchMode = "moveBelowMenuBar"
 notificationBadgeRefreshIntervalSeconds = 5.0
 notificationBadges = "text"
-position = "belowMenuBar"
-reserveLayoutSpace = true
+position = "overlappingMenuBar"
+reserveLayoutSpace = false
 revealHoldMilliseconds = 200.0
 revealModifier = "off"
 showAccentHighlights = true
@@ -1111,6 +1112,12 @@ id = "toggleOverview"
 binding = "Unassigned"
 id = "toggleSystemStats"
 
+[[monitorBarOverrides]]
+id = "38A9F92D-E763-499D-BED8-57AFE711D982"
+monitorDisplayUUID = "37D8832A-2D66-02CA-B9F7-8F30A301B230"
+monitorName = "Built-in Retina Display"
+notchMode = "splitActiveLeft"
+
 [[workspaces]]
 id = "AD36F001-C57E-41A5-AC1D-DF5249D007F0"
 layoutType = "niri"
@@ -1139,48 +1146,6 @@ type = "main"
 id = "248AA883-2261-4D45-943C-79C0E46A232B"
 layoutType = "niri"
 name = "4"
-
-[workspaces.monitorAssignment]
-type = "main"
-
-[[workspaces]]
-id = "8B8C45D6-CE9E-41D9-BD50-BE4989D5E3DE"
-layoutType = "niri"
-name = "5"
-
-[workspaces.monitorAssignment]
-type = "main"
-
-[[workspaces]]
-displayName = "❤️"
-id = "5953F2BF-A378-4266-91B2-287174C4FA4D"
-layoutType = "default"
-name = "6"
-
-[workspaces.monitorAssignment]
-type = "secondary"
-
-[[workspaces]]
-displayName = "🚀"
-id = "A7D5E104-6985-4516-8ED5-07F144F2A33D"
-layoutType = "niri"
-name = "7"
-
-[workspaces.monitorAssignment]
-type = "secondary"
-
-[[workspaces]]
-id = "0E18F6B0-345A-4078-8B21-33641F07A861"
-layoutType = "niri"
-name = "8"
-
-[workspaces.monitorAssignment]
-type = "main"
-
-[[workspaces]]
-id = "8D4D711C-2B2F-4FEC-86BF-FA952037738A"
-layoutType = "niri"
-name = "9"
 
 [workspaces.monitorAssignment]
 type = "main"
