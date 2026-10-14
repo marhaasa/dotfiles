@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Claude Code hook (SessionStart, CwdChanged): inside ~/Repos/github.com/marhaasa/ make gh act as the
+# agent account by pointing GH_CONFIG_DIR at the gh-agent config dir (see scripts/gh-agent).
+# Outside that tree the variable is unset again, so gh is you. Git identity is scoped separately
+# via ~/.config/git/agent.gitconfig. Lines appended to CLAUDE_ENV_FILE run before every Bash command.
+[ -n "${CLAUDE_ENV_FILE:-}" ] || exit 0
+
+cwd=$(jq -r '.cwd // empty' 2>/dev/null)
+dir=$(cd "${cwd:-${CLAUDE_PROJECT_DIR:-$PWD}}" 2>/dev/null && pwd -P)
+
+case "$dir" in
+  "$HOME"/Repos/github.com/marhaasa/*)
+    echo 'export GH_CONFIG_DIR="$HOME/.config/gh-agent"' >> "$CLAUDE_ENV_FILE" ;;
+  *)
+    echo 'unset GH_CONFIG_DIR' >> "$CLAUDE_ENV_FILE" ;;
+esac
+exit 0

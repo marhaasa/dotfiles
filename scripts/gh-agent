@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# gh as the agent account (agatusmille). Uses its own config dir so your own
+# gh login (marhaasa) is never touched. The same dir is what the Claude
+# SessionStart hook points GH_CONFIG_DIR at inside marhaasa repos.
+#
+#   gh-agent auth login        one-time login as agatusmille (browser flow)
+#   gh-agent accept-invites    accept every pending repository invitation
+#   gh-agent <gh args...>      any other gh command, run as agatusmille
+set -euo pipefail
+
+export GH_CONFIG_DIR="${GH_AGENT_CONFIG_DIR:-$HOME/.config/gh-agent}"
+agent_user="${GH_AGENT_USER:-agatusmille}"
+
+login_hint() {
+  echo "gh-agent: not logged in as $agent_user (config dir: $GH_CONFIG_DIR)" >&2
+  echo "run: $0 auth login" >&2
+  exit 1
+}
+
+case "${1:-}" in
+  auth)
+    # bare "auth login": pick sane defaults, skip the SSH-key upload prompt
+    if [[ "${2:-}" == "login" && $# -eq 2 ]]; then
+      exec gh auth login --hostname github.com --git-protocol ssh --skip-ssh-key
+    fi
+    exec gh "$@" ;;
+
+  accept-invites)
+    login=$(gh api user --jq .login 2>/dev/null) || login_hint
+    if [[ "$login" != "$agent_user" ]]; then
+      echo "gh-agent: logged in as $login, expected $agent_user" >&2
+      exit 1
+    fi
+    n=0
+    while read -r id repo; do
+      [[ -n "$id" ]] || continue
+      if gh api -X PATCH "user/repository_invitations/$id" --silent; then
+        echo "accepted  $repo"; n=$((n + 1))
+      else
+        echo "FAILED    $repo" >&2
+      fi
+    done < <(gh api user/repository_invitations --paginate \
+               --jq '.[] | "\(.id) \(.repository.full_name)"')
+    echo "$n invitation(s) accepted as $agent_user"
+    ;;
+
+  *)
+    exec gh "$@" ;;
+esac
